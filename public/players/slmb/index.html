@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLMB Player</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #1a1a2e; color: #eee; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        #canvas-container { width: 100vw; height: 100vh; }
+
+        #controls {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            background: rgba(0,0,0,0.75); padding: 12px 20px;
+            display: flex; align-items: center; gap: 12px;
+        }
+        button {
+            background: #16213e; color: #eee; border: 1px solid #0f3460;
+            border-radius: 4px; padding: 6px 14px; cursor: pointer; font-size: 14px; white-space: nowrap;
+        }
+        button:hover { background: #0f3460; }
+        button.active { background: #e94560; border-color: #e94560; }
+        button.toggle-on { background: #0a8; border-color: #0a8; }
+
+        #timeline {
+            flex: 1; height: 6px; -webkit-appearance: none; appearance: none;
+            background: #16213e; border-radius: 3px; outline: none; cursor: pointer;
+        }
+        #timeline::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 14px; height: 14px;
+            background: #e94560; border-radius: 50%; cursor: pointer;
+        }
+
+        #info {
+            position: absolute; top: 12px; left: 12px;
+            background: rgba(0,0,0,0.6); padding: 10px 14px; border-radius: 6px;
+            font-size: 13px; line-height: 1.6;
+        }
+        #mode-indicator {
+            position: absolute; top: 12px; right: 12px;
+            background: rgba(0,0,0,0.6); padding: 8px 14px; border-radius: 6px; font-size: 13px;
+        }
+        .mode-label { color: #888; }
+        .mode-value { color: #0f8; font-weight: bold; }
+
+        #speed-display, #frame-display, #time-display {
+            font-size: 13px; min-width: 60px; text-align: center;
+        }
+        .separator { width: 1px; height: 24px; background: #0f3460; }
+
+        #load-prompt {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; font-size: 16px; color: #888;
+        }
+        #load-prompt .title { font-size: 28px; margin-bottom: 20px; color: #ccc; }
+        .source-buttons { display: flex; gap: 12px; justify-content: center; margin-top: 16px; }
+        .source-buttons button { font-size: 15px; padding: 12px 20px; }
+        .source-btn-json { background: #0a8; border-color: #0a8; }
+        .source-btn-bvh { background: #e94560; border-color: #e94560; }
+        .source-btn-gltf { background: #6c5ce7; border-color: #6c5ce7; }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="load-prompt">
+        <div class="title">SLMB Pipeline Player</div>
+        Load SLMB decoded data:<br><br>
+        <div class="source-buttons">
+            <button class="source-btn-json" id="btn-load-json">SLMB JSON</button>
+            <button class="source-btn-bvh" id="btn-load-bvh">Roundtrip BVH</button>
+            <button class="source-btn-gltf" id="btn-load-gltf">Roundtrip glTF</button>
+        </div>
+        <input type="file" id="file-input-json" accept=".json" style="display:none;">
+        <input type="file" id="file-input-bvh" accept=".bvh" style="display:none;">
+        <input type="file" id="file-input-gltf" accept=".gltf" style="display:none;">
+        <div style="margin-top: 24px; font-size: 13px; color: #666;">
+            or load preset from server:
+            <div class="source-buttons" style="margin-top: 8px;">
+                <button class="source-btn-json" id="btn-preset-json" style="font-size:13px; padding:6px 14px;">Preset JSON</button>
+                <button class="source-btn-bvh" id="btn-preset-bvh" style="font-size:13px; padding:6px 14px;">Preset BVH</button>
+                <button class="source-btn-gltf" id="btn-preset-gltf" style="font-size:13px; padding:6px 14px;">Preset glTF</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="info" style="display:none;">
+        <div>Source: <strong id="info-source">-</strong></div>
+        <div>Joints: <strong id="info-joints">-</strong></div>
+        <div>Frames: <strong id="info-frames">-</strong></div>
+        <div>FPS: <strong id="info-fps">-</strong></div>
+        <div>Duration: <strong id="info-duration">-</strong>s</div>
+        <div>Blendshapes: <strong id="info-blendshapes">-</strong></div>
+    </div>
+
+    <div id="mode-indicator" style="display:none;">
+        <span class="mode-label">View: </span>
+        <span class="mode-value" id="mode-value">Avatar</span>
+    </div>
+
+    <div id="controls" style="display:none;">
+        <button id="btn-play" class="active">&#9654;</button>
+        <button id="btn-stop">&#9632;</button>
+        <span id="time-display">0.00s</span>
+        <input type="range" id="timeline" min="0" max="1000" value="0">
+        <span id="frame-display">0/0</span>
+        <button id="btn-slower">-</button>
+        <span id="speed-display">1.0x</span>
+        <button id="btn-faster">+</button>
+        <div class="separator"></div>
+        <button id="btn-toggle-skeleton">Bones</button>
+        <button id="btn-reset-cam">Cam</button>
+        <button id="btn-back">Back</button>
+    </div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { BVHLoader } from 'three/addons/loaders/BVHLoader.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // --- Scene ---
+        const container = document.getElementById('canvas-container');
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setClearColor(0x1a1a2e);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        container.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        const grid = new THREE.GridHelper(4, 20, 0x0f3460, 0x0f3460);
+        grid.material.opacity = 0.4; grid.material.transparent = true;
+        scene.add(grid);
+        scene.add(new THREE.AxesHelper(0.3));
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const dl = new THREE.DirectionalLight(0xffffff, 1.0); dl.position.set(2,4,3); scene.add(dl);
+        const bl = new THREE.DirectionalLight(0xffffff, 0.3); bl.position.set(-2,3,-3); scene.add(bl);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.01, 100);
+        camera.position.set(0, 1.0, 2.5);
+        const orbit = new OrbitControls(camera, renderer.domElement);
+        orbit.target.set(0, 0.8, 0); orbit.enableDamping = true; orbit.dampingFactor = 0.1; orbit.update();
+
+        // --- State ---
+        let mixer = null, action = null, clock = new THREE.Clock();
+        let isPlaying = true, playbackSpeed = 1.0, duration = 0, totalFrames = 0, frameTime = 0;
+        let avatarModel = null, avatarBoneMap = {}, avatarLoaded = false;
+        let skeletonHelper = null, showSkeleton = false;
+        let currentSource = '';
+
+        // For SLMB JSON direct mode
+        let slmbData = null;
+        let slmbAnimating = false;
+
+        const BVH_SCALE = 0.01;
+        const AVATAR_PATH = '/avatars/abnt/avatarModel/model_external.gltf';
+
+        // --- UI ---
+        const $ = id => document.getElementById(id);
+
+        // --- Load Avatar Model ---
+        function loadAvatarModel() {
+            return new Promise((resolve, reject) => {
+                new GLTFLoader().load(AVATAR_PATH, (gltf) => {
+                    avatarModel = gltf.scene;
+                    avatarModel.scale.set(0.01, 0.01, 0.01);
+                    avatarModel.visible = true;
+                    scene.add(avatarModel);
+
+                    avatarBoneMap = {};
+                    avatarModel.traverse(node => {
+                        if (node.isBone) avatarBoneMap[node.name] = node;
+                        if (node.isSkinnedMesh) node.frustumCulled = false;
+                    });
+                    avatarLoaded = true;
+                    console.log(`Avatar loaded: ${Object.keys(avatarBoneMap).length} bones`);
+                    resolve();
+                }, undefined, reject);
+            });
+        }
+        loadAvatarModel();
+
+        // ==================================================
+        // SOURCE 1: SLMB JSON
+        // ==================================================
+        function loadSLMBJson(jsonData) {
+            cleanup();
+            currentSource = 'SLMB JSON';
+
+            if (typeof jsonData === 'string') jsonData = JSON.parse(jsonData);
+            slmbData = jsonData;
+
+            const body = slmbData.body;
+            totalFrames = body.num_frames;
+            frameTime = body.frame_time;
+            duration = totalFrames * frameTime;
+
+            // Build Three.js AnimationClip from SLMB JSON data
+            const tracks = [];
+            const times = [];
+            for (let f = 0; f < totalFrames; f++) times.push(f * frameTime);
+
+            for (const joint of body.joints) {
+                const boneName = joint.name;
+
+                // Quaternion track
+                const qValues = [];
+                for (const frame of joint.frames) {
+                    // JSON: [qw, qx, qy, qz], Three.js: [qx, qy, qz, qw]
+                    qValues.push(frame.q[1], frame.q[2], frame.q[3], frame.q[0]);
+                }
+                tracks.push(new THREE.QuaternionKeyframeTrack(
+                    `${boneName}.quaternion`, times, qValues
+                ));
+
+                // Translation track (root only)
+                if (joint.type === 0 && joint.frames[0].t) {
+                    const tValues = [];
+                    for (const frame of joint.frames) {
+                        // SLMB translations are in meters
+                        tValues.push(frame.t[0], frame.t[1], frame.t[2]);
+                    }
+                    tracks.push(new THREE.VectorKeyframeTrack(
+                        `${boneName}.position`, times, tValues
+                    ));
+                }
+            }
+
+            // Face blendshape tracks
+            if (slmbData.face && slmbData.face.blendshapes) {
+                // TODO: face blendshape tracks
+                // These need to map to avatar mesh morphTargets
+            }
+
+            const clip = new THREE.AnimationClip('slmb', duration, tracks);
+
+            // Apply to avatar
+            if (avatarLoaded) {
+                // Create skeleton helper from avatar
+                addSkeletonHelper();
+
+                mixer = new THREE.AnimationMixer(avatarModel);
+                action = mixer.clipAction(clip);
+                action.play();
+            }
+
+            showUI(totalFrames, slmbData.face?.blendshapes?.length || 0);
+        }
+
+        // ==================================================
+        // SOURCE 2: BVH (roundtrip)
+        // ==================================================
+        function loadBVH(text) {
+            cleanup();
+            currentSource = 'Roundtrip BVH';
+
+            const bvhResult = new BVHLoader().parse(text);
+            const bvhSkeleton = bvhResult.skeleton;
+
+            // Extract frame info
+            const framesMatch = text.match(/Frames:\s*(\d+)/);
+            const ftMatch = text.match(/Frame Time:\s*([\d.]+)/);
+            totalFrames = framesMatch ? parseInt(framesMatch[1]) : 142;
+            frameTime = ftMatch ? parseFloat(ftMatch[1]) : 1/30;
+
+            // Build AnimationClip from BVH
+            // Keep only hips position track (cm->m), drop all other position tracks
+            // to avoid overriding avatar bone rest positions
+            const clip = bvhResult.clip;
+            const filteredTracks = clip.tracks.filter(track => {
+                if (track.name.endsWith('.position')) {
+                    return track.name.startsWith('hips_JNT');
+                }
+                return true;
+            }).map(track => {
+                if (track.name.endsWith('.position')) {
+                    const sv = new Float32Array(track.values.length);
+                    for (let i = 0; i < track.values.length; i++) sv[i] = track.values[i] * BVH_SCALE;
+                    return new THREE.VectorKeyframeTrack(track.name, Array.from(track.times), Array.from(sv));
+                }
+                return track;
+            });
+            const scaledClip = new THREE.AnimationClip(clip.name, clip.duration, filteredTracks);
+            duration = scaledClip.duration;
+
+            if (avatarLoaded) {
+                addSkeletonHelper();
+                mixer = new THREE.AnimationMixer(avatarModel);
+                action = mixer.clipAction(scaledClip);
+                action.play();
+            }
+
+            showUI(totalFrames, 0);
+        }
+
+        // ==================================================
+        // SOURCE 3: glTF (roundtrip)
+        // ==================================================
+        function loadGLTFAnimation(arrayBuffer, filename) {
+            cleanup();
+            currentSource = 'Roundtrip glTF';
+
+            new GLTFLoader().parse(arrayBuffer, '', (gltf) => {
+                if (!gltf.animations || gltf.animations.length === 0) {
+                    console.error('No animations in glTF');
+                    return;
+                }
+
+                const clip = gltf.animations[0];
+                duration = clip.duration;
+                totalFrames = Math.round(duration * 30);
+                frameTime = 1/30;
+
+                if (avatarLoaded) {
+                    addSkeletonHelper();
+                    mixer = new THREE.AnimationMixer(avatarModel);
+                    action = mixer.clipAction(clip);
+                    action.play();
+                }
+
+                // Count weight channels
+                const weightChannels = clip.tracks.filter(t => t.name.includes('morphTargetInfluences')).length;
+                showUI(totalFrames, weightChannels);
+            });
+        }
+
+        // ==================================================
+        // Shared helpers
+        // ==================================================
+        function cleanup() {
+            if (mixer) { mixer.stopAllAction(); mixer = null; }
+            action = null;
+            slmbData = null;
+            if (skeletonHelper) { scene.remove(skeletonHelper); skeletonHelper = null; }
+
+            // Reset avatar bones to rest pose
+            if (avatarLoaded) {
+                avatarModel.traverse(node => {
+                    if (node.isBone && node.userData.restQ) {
+                        node.quaternion.copy(node.userData.restQ);
+                        node.position.copy(node.userData.restP);
+                    }
+                });
+            }
+        }
+
+        function addSkeletonHelper() {
+            if (skeletonHelper) scene.remove(skeletonHelper);
+            skeletonHelper = new THREE.SkeletonHelper(avatarModel);
+            skeletonHelper.visible = showSkeleton;
+            scene.add(skeletonHelper);
+
+            // Store rest pose
+            avatarModel.traverse(node => {
+                if (node.isBone) {
+                    node.userData.restQ = node.quaternion.clone();
+                    node.userData.restP = node.position.clone();
+                }
+            });
+        }
+
+        function showUI(frames, blendshapes) {
+            $('info-source').textContent = currentSource;
+            $('info-joints').textContent = '46';
+            $('info-frames').textContent = frames;
+            $('info-fps').textContent = Math.round(1/frameTime);
+            $('info-duration').textContent = duration.toFixed(2);
+            $('info-blendshapes').textContent = blendshapes;
+            $('info').style.display = 'block';
+            $('controls').style.display = 'flex';
+            $('mode-indicator').style.display = 'block';
+            $('load-prompt').style.display = 'none';
+            $('timeline').max = 1000;
+            $('timeline').value = 0;
+            isPlaying = true;
+            $('btn-play').classList.add('active');
+            $('btn-play').innerHTML = '&#9654;';
+            clock.start();
+
+            // Let first frame apply, then center camera
+            requestAnimationFrame(() => {
+                if (mixer) mixer.update(0);
+                resetCamera();
+            });
+        }
+
+        function resetCamera() {
+            const cy = getAvatarCenterY();
+            camera.position.set(0, cy, 2.5);
+            orbit.target.set(0, cy, 0); orbit.update();
+        }
+
+        function getAvatarCenterY() {
+            if (!avatarLoaded || !avatarModel) return 0.8;
+            const hips = avatarBoneMap['hips_JNT'];
+            if (!hips) return 0.8;
+            const pos = new THREE.Vector3();
+            hips.getWorldPosition(pos);
+            // Avatar center ≈ hips + half upper body height (~0.25m)
+            return pos.y + 0.25;
+        }
+
+        function updateUI() {
+            if (!action) return;
+            const t = action.time;
+            $('time-display').textContent = t.toFixed(2) + 's';
+            const frame = Math.min(Math.floor(t / frameTime), totalFrames);
+            $('frame-display').textContent = `${frame}/${totalFrames}`;
+            if (!isScrubbing) $('timeline').value = (t / duration) * 1000;
+        }
+
+        // --- Controls ---
+        $('btn-play').addEventListener('click', () => {
+            isPlaying = !isPlaying;
+            $('btn-play').classList.toggle('active', isPlaying);
+            $('btn-play').innerHTML = isPlaying ? '&#9654;' : '&#9208;';
+            if (isPlaying) clock.getDelta();
+        });
+        $('btn-stop').addEventListener('click', () => {
+            if (!action) return;
+            isPlaying = false;
+            $('btn-play').classList.remove('active');
+            $('btn-play').innerHTML = '&#9654;';
+            action.time = 0; mixer.update(0); updateUI();
+        });
+        $('btn-slower').addEventListener('click', () => {
+            playbackSpeed = Math.max(0.1, playbackSpeed - 0.1);
+            $('speed-display').textContent = playbackSpeed.toFixed(1) + 'x';
+        });
+        $('btn-faster').addEventListener('click', () => {
+            playbackSpeed = Math.min(5.0, playbackSpeed + 0.1);
+            $('speed-display').textContent = playbackSpeed.toFixed(1) + 'x';
+        });
+        $('btn-reset-cam').addEventListener('click', resetCamera);
+
+        $('btn-toggle-skeleton').addEventListener('click', () => {
+            showSkeleton = !showSkeleton;
+            if (skeletonHelper) skeletonHelper.visible = showSkeleton;
+            $('btn-toggle-skeleton').classList.toggle('toggle-on', showSkeleton);
+            $('mode-value').textContent = showSkeleton ? 'Avatar + Skeleton' : 'Avatar';
+        });
+
+        $('btn-back').addEventListener('click', () => {
+            cleanup();
+            $('info').style.display = 'none';
+            $('controls').style.display = 'none';
+            $('mode-indicator').style.display = 'none';
+            $('load-prompt').style.display = 'block';
+        });
+
+        let isScrubbing = false;
+        $('timeline').addEventListener('input', () => {
+            if (!action || !mixer) return;
+            isScrubbing = true;
+            action.time = (parseFloat($('timeline').value) / 1000) * duration;
+            mixer.update(0); updateUI();
+        });
+        $('timeline').addEventListener('change', () => { isScrubbing = false; });
+
+        // --- File loading ---
+        $('btn-load-json').addEventListener('click', () => $('file-input-json').click());
+        $('btn-load-bvh').addEventListener('click', () => $('file-input-bvh').click());
+        $('btn-load-gltf').addEventListener('click', () => $('file-input-gltf').click());
+
+        $('file-input-json').addEventListener('change', e => {
+            const file = e.target.files[0]; if (!file) return;
+            file.text().then(text => loadSLMBJson(text));
+        });
+        $('file-input-bvh').addEventListener('change', e => {
+            const file = e.target.files[0]; if (!file) return;
+            file.text().then(text => loadBVH(text));
+        });
+        $('file-input-gltf').addEventListener('change', e => {
+            const file = e.target.files[0]; if (!file) return;
+            // glTF with external .bin must be loaded via URL, not ArrayBuffer from file picker.
+            // Create object URLs for both .gltf and .bin if available.
+            const gltfUrl = URL.createObjectURL(file);
+            // For file picker, we load via URL so GLTFLoader can resolve relative .bin path
+            // This won't work for external .bin. Use preset button instead for glTF with .bin.
+            // Try loading - if .bin is in same server path it will work.
+            new GLTFLoader().load(gltfUrl, (gltf) => {
+                cleanup();
+                currentSource = 'Roundtrip glTF';
+                if (!gltf.animations || gltf.animations.length === 0) {
+                    console.error('No animations in glTF'); return;
+                }
+                const clip = gltf.animations[0];
+                duration = clip.duration;
+                totalFrames = Math.round(duration * 30);
+                frameTime = 1/30;
+                if (avatarLoaded) {
+                    addSkeletonHelper();
+                    mixer = new THREE.AnimationMixer(avatarModel);
+                    action = mixer.clipAction(clip);
+                    action.play();
+                }
+                const wc = clip.tracks.filter(t => t.name.includes('morphTargetInfluences')).length;
+                showUI(totalFrames, wc);
+                URL.revokeObjectURL(gltfUrl);
+            }, undefined, (err) => {
+                console.error('glTF load failed (external .bin not found via file picker). Use preset or URL mode.', err);
+                URL.revokeObjectURL(gltfUrl);
+                alert('glTF with external .bin cannot be loaded via file picker.\\nUse the preset buttons below.');
+            });
+        });
+
+        // --- Presets: load roundtrip files from data/ via URL ---
+        const PRESET_BASE = '/animations/abnt/';
+
+        $('btn-preset-json').addEventListener('click', async () => {
+            try {
+                const text = await (await fetch(PRESET_BASE + 'avatarModel_roundtrip_slmb.json')).text();
+                loadSLMBJson(text);
+            } catch (err) { alert('Preset JSON not found. Run roundtrip first.'); }
+        });
+
+        $('btn-preset-bvh').addEventListener('click', async () => {
+            try {
+                const text = await (await fetch(PRESET_BASE + 'avatarModel_roundtrip.bvh')).text();
+                loadBVH(text);
+            } catch (err) { alert('Preset BVH not found. Run roundtrip first.'); }
+        });
+
+        $('btn-preset-gltf').addEventListener('click', async () => {
+            try {
+                // Load via GLTFLoader with URL so it can resolve .bin relative path
+                new GLTFLoader().load(PRESET_BASE + 'avatarModel_roundtrip.gltf', (gltf) => {
+                    cleanup();
+                    currentSource = 'Roundtrip glTF';
+                    if (!gltf.animations || gltf.animations.length === 0) {
+                        console.error('No animations in glTF'); return;
+                    }
+                    const clip = gltf.animations[0];
+                    duration = clip.duration;
+                    totalFrames = Math.round(duration * 30);
+                    frameTime = 1/30;
+                    if (avatarLoaded) {
+                        addSkeletonHelper();
+                        mixer = new THREE.AnimationMixer(avatarModel);
+                        action = mixer.clipAction(clip);
+                        action.play();
+                    }
+                    const wc = clip.tracks.filter(t => t.name.includes('morphTargetInfluences')).length;
+                    showUI(totalFrames, wc);
+                });
+            } catch (err) { alert('Preset glTF not found. Run roundtrip first.'); }
+        });
+
+        // --- Keyboard ---
+        window.addEventListener('keydown', e => {
+            if (e.code === 'Space') { e.preventDefault(); $('btn-play').click(); }
+            if (e.code === 'ArrowLeft' && action) {
+                action.time = Math.max(0, action.time - frameTime);
+                mixer.update(0); updateUI();
+            }
+            if (e.code === 'ArrowRight' && action) {
+                action.time = Math.min(duration, action.time + frameTime);
+                mixer.update(0); updateUI();
+            }
+            if (e.code === 'KeyS') $('btn-toggle-skeleton').click();
+        });
+
+        // --- Render loop ---
+        let cameraFollowing = true;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (mixer && isPlaying && !isScrubbing) {
+                mixer.update(clock.getDelta() * playbackSpeed);
+                updateUI();
+            }
+
+            // Smoothly track avatar center
+            if (cameraFollowing && avatarLoaded && mixer) {
+                const targetY = getAvatarCenterY();
+                orbit.target.y += (targetY - orbit.target.y) * 0.1;
+            }
+
+            orbit.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>

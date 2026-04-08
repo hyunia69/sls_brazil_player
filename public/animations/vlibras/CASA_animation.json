@@ -1,0 +1,52 @@
+{
+  "bounds": {
+    "m_Center": "Vector3f(-1.4781951904296875e-05, 1.428725242614746, 1.3902950286865234)",
+    "m_Extent": "Vector3f(2.1674742698669434, 4.262772560119629, 2.2620291709899902)"
+  },
+  "muscle_clip_size": 0,
+  "sample_rate": 30.0,
+  "legacy": true,
+  "compressed": false,
+  "high_quality_curve": true,
+  "rotation_curves": [
+    {
+      "path": "Armature.001",
+      "curve": "AnimationCurve(m_Curve=[Keyframe(inSlope=Quaternion(0.0, 0.0, 0.0, 0.0), outSlope=Quaternion(0.0, 0.0, 0.0, 0.0), time=0.0, value=Quaternion(-0.7071068286895752, 0.0, -0.0, 0.7071067094802856), inWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), outWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), weightedMode=0), Keyframe(inSlope=Quaternion(0.0, 0.0, 0.0, 0.0), outSlope=Quaternion(0.0, 0.0, 0.0, 0.0), time=2.4666666984558105, value=Quaternion(-0.7071068286895752, 0.0, -0.0, 0.7071067094802856), inWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), outWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), weightedMode=0)], m_PostInfinity=2, m_PreInfinity=2, m_RotationOrder=4)"
+    },
+    {
+      "path": "Armature.001/BnMaoOrient.R",
+      "curve": "AnimationCurve(m_Curve=[Keyframe(inSlope=Quaternion(0.0, 0.0, 0.0, 0.0), outSlope=Quaternion(0.0, 0.0, 0.0, 0.0), time=0.0, value=Quaternion(2.384822437306866e-06, 5.4069786870059033e-08, -0.655354380607605, 0.7553215622901917), inWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), outWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), weightedMode=0), Keyframe(inSlope=Quaternion(0.0, 0.0, 0.0, 0.0), outSlope=Quaternion(0.0, 0.0, 0.0, 0.0), time=2.4666666984558105, value=Quaternion(2.384822437306866e-06, 5.4069786870059033e-08, -0.655354380607605, 0.7553215622901917), inWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), outWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), weightedMode=0)], m_PostInfinity=2, m_PreInfinity=2, m_RotationOrder=4)"
+    },
+    {
+      "path": "Armature.001/BnPolyV.R",
+      "curve": "AnimationCurve(m_Curve=[Keyframe(inSlope=Quaternion(0.0, 0.0, 0.0, 0.0), outSlope=Quaternion(0.0, 0.0, 0.0, 0.0), time=0.0, value=Quaternion(-9.415696666792428e-08, 0.7071068286895752, 0.7071067094802856, -9.415695956249692e-08), inWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), outWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), weightedMode=0), Keyframe(inSlope=Quaternion(0.0, 0.0, 0.0, 0.0), outSlope=Quaternion(0.0, 0.0, 0.0, 0.0), time=2.4666666984558105, value=Quaternion(-9.415696666792428e-08, 0.7071068286895752, 0.7071067094802856, -9.415695956249692e-08), inWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), outWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), weightedMode=0)], m_PostInfinity=2, m_PreInfinity=2, m_RotationOrder=4)"
+    },
+    {
+      "path": "Armature.001/ik_FK.L",
+      "curve": "AnimationCurve(m_Curve=[Keyframe(inSlope=Quaternion(0.0, 0.0, 0.0, 0.0), outSlope=Quaternion(0.0, 0.0, 0.0, 0.0), time=0.0, value=Quaternion(0.7071102261543274, 1.565351226417988e-08, -5.379180038289633e-06, 0.7071033716201782), inWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), outWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), weightedMode=0), Keyframe(inSlope=Quaternion(0.0, 0.0, 0.0, 0.0), outSlope=Quaternion(0.0, 0.0, 0.0, 0.0), time=2.4666666984558105, value=Quaternion(0.7071102261543274, 1.565351226417988e-08, -5.379180038289633e-06, 0.7071033716201782), inWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), outWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), weightedMode=0)], m_PostInfinity=2, m_PreInfinity=2, m_RotationOrder=4)"
+    },
+    {
+      "path": "Armature.001/ik_FK.R",
+      "curve": "AnimationCurve(m_Curve=[Keyframe(inSlope=Quaternion(0.0, 0.0, 0.0, 0.0), outSlope=Quaternion(0.0, 0.0, 0.0, 0.0), time=0.0, value=Quaternion(0.7071102261543274, -1.565351226417988e-08, 5.379180038289633e-06, 0.7071033716201782), inWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), outWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), weightedMode=0), Keyframe(inSlope=Quaternion(0.0, 0.0, 0.0, 0.0), outSlope=Quaternion(0.0, 0.0, 0.0, 0.0), time=2.4666666984558105, value=Quaternion(0.7071102261543274, -1.565351226417988e-08, 5.379180038289633e-06, 0.7071033716201782), inWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), outWeight=Quaternion(0.3333333432674408, 0.3333333432674408, 0.3333333432674408, 0.3333333432674408), weightedMode=0)], m_PostInfinity=2, m_PreInfinity=2, m_RotationOrder=4)"
+    }
+  ],
+  "position_curves": [
+    {
+      "path": "Armature.001"
+    },
+    {
+      "path": "Armature.001/BnMaoOrient.R"
+    },
+    {
+      "path": "Armature.001/BnPolyV.R"
+    },
+    {
+      "path": "Armature.001/ik_FK.L"
+    },
+    {
+      "path": "Armature.001/ik_FK.R"
+    }
+  ],
+  "scale_curves_count": 84,
+  "float_curves_count": 22
+}

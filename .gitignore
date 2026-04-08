@@ -31,5 +31,5 @@ node_modules/
 _validation/
 
 # Original source directories (archived after migration)
-slmb/
-vlibras/
+/slmb/
+/vlibras/
