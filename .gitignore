@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Blender backup files
+*.blend1
+*.blend2
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+
+# FBX source files (large, regenerable from Blender)
+*.fbx
+
+# Node (in case package.json is ever added)
+node_modules/
+
+# Vercel
+.vercel/
+
+# Validation test artifacts
+_validation/
+
+# Original source directories (archived after migration)
+slmb/
+vlibras/

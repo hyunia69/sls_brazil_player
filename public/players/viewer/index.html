@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Avatar Model Viewer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; color: #eee; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+  #canvas { display: block; width: 100vw; height: 100vh; }
+
+  /* Top controls */
+  #controls {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 20px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%);
+    z-index: 10;
+  }
+  #controls h1 { font-size: 16px; font-weight: 600; margin-right: 8px; white-space: nowrap; }
+  .model-btn {
+    padding: 6px 16px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+    background: rgba(255,255,255,0.05); color: #ccc; cursor: pointer;
+    font-size: 13px; transition: all 0.2s;
+  }
+  .model-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .model-btn.active { background: #4361ee; border-color: #4361ee; color: #fff; }
+
+  /* Info panel */
+  #info {
+    position: fixed; bottom: 16px; left: 16px;
+    padding: 12px 16px; border-radius: 8px;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+    font-size: 12px; line-height: 1.6; z-index: 10;
+    min-width: 200px;
+  }
+  #info .label { color: #888; }
+  #info .value { color: #eee; font-weight: 500; }
+
+  /* Loading */
+  #loading {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #1a1a2e; z-index: 100;
+    transition: opacity 0.4s;
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+  .spinner {
+    width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: #4361ee; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  #loading span { margin-left: 16px; font-size: 14px; color: #888; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Mesh list panel */
+  #mesh-panel {
+    position: fixed; top: 60px; right: 16px;
+    padding: 12px; border-radius: 8px;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+    font-size: 12px; z-index: 10; max-height: calc(100vh - 100px);
+    overflow-y: auto; min-width: 180px;
+  }
+  #mesh-panel h3 { font-size: 13px; margin-bottom: 8px; color: #aaa; }
+  .mesh-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 3px 0; cursor: pointer; color: #ccc;
+  }
+  .mesh-item:hover { color: #fff; }
+  .mesh-item input { accent-color: #4361ee; cursor: pointer; }
+  .mesh-item.armature { color: #f7b731; font-weight: 500; }
+
+  /* Help */
+  #help {
+    position: fixed; bottom: 16px; right: 16px;
+    font-size: 11px; color: #555; z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div><span>Loading model...</span></div>
+
+<div id="controls">
+  <h1>Avatar Viewer</h1>
+  <button class="model-btn active" data-model="icaro">Icaro</button>
+  <button class="model-btn" data-model="padrao">Padrao</button>
+  <button class="model-btn" data-model="padrao_tex">Padrao (Tex)</button>
+  <button class="model-btn" data-model="casa">CASA</button>
+  <button class="model-btn" data-model="casa_tex">CASA (Tex)</button>
+</div>
+
+<div id="info">
+  <div><span class="label">Model: </span><span class="value" id="info-name">-</span></div>
+  <div><span class="label">Meshes: </span><span class="value" id="info-meshes">-</span></div>
+  <div><span class="label">Bones: </span><span class="value" id="info-bones">-</span></div>
+  <div><span class="label">Vertices: </span><span class="value" id="info-verts">-</span></div>
+</div>
+
+<div id="mesh-panel">
+  <h3>Objects</h3>
+  <div id="mesh-list"></div>
+</div>
+
+<div id="help">Drag: Rotate | Scroll: Zoom | Right-drag: Pan</div>
+
+<canvas id="canvas"></canvas>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const MODELS = {
+  icaro:      '/avatars/vlibras/icaro/export/icaro.glb',
+  padrao:     '/avatars/vlibras/padrao/export/padrao.glb',
+  padrao_tex: '/avatars/vlibras/padrao/export/padrao_tex.glb',
+  casa:       '/avatars/vlibras/casa/export/casa.glb',
+  casa_tex:   '/avatars/vlibras/casa/export/casa_tex.glb',
+};
+
+const EXCLUDE_NAMES = ['Icosphere'];
+
+// --- Scene setup ---
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
+camera.position.set(0, 1.5, 4);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 1, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 0.5;
+controls.maxDistance = 15;
+controls.update();
+
+// --- Lighting ---
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+dirLight.position.set(3, 5, 3);
+scene.add(dirLight);
+
+const fillLight = new THREE.DirectionalLight(0x8888ff, 0.4);
+fillLight.position.set(-3, 2, -2);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight(0xffffff, 0.3);
+rimLight.position.set(0, 3, -5);
+scene.add(rimLight);
+
+// --- Ground grid ---
+const grid = new THREE.GridHelper(10, 20, 0x333355, 0x222244);
+grid.position.y = 0;
+scene.add(grid);
+
+// --- State ---
+let currentModel = null;
+let currentName = '';
+const loader = new GLTFLoader();
+const loadingEl = document.getElementById('loading');
+const meshListEl = document.getElementById('mesh-list');
+
+function showLoading(show) {
+  loadingEl.classList.toggle('hidden', !show);
+}
+
+function updateInfo(name, model) {
+  let meshCount = 0, boneCount = 0, vertCount = 0;
+  model.traverse(child => {
+    if (child.isMesh) {
+      meshCount++;
+      vertCount += child.geometry.attributes.position?.count || 0;
+    }
+    if (child.isBone) boneCount++;
+  });
+  document.getElementById('info-name').textContent = name;
+  document.getElementById('info-meshes').textContent = meshCount;
+  document.getElementById('info-bones').textContent = boneCount;
+  document.getElementById('info-verts').textContent = vertCount.toLocaleString();
+}
+
+function buildMeshList(model) {
+  meshListEl.innerHTML = '';
+  const items = [];
+  // Collect mesh groups: parent object node -> child meshes (multi-material splits)
+  const parentGroups = new Map();
+  model.traverse(child => {
+    if (child.isMesh) {
+      // Walk up to find meaningful parent name (object-level node)
+      let label = child.name;
+      let node = child;
+      while (node && (!label || /^(Mesh|Untitled|Object)[\d_]*$/i.test(label))) {
+        node = node.parent;
+        if (node) label = node.name;
+      }
+      label = label || child.name || 'unnamed';
+      // If parent has multiple mesh children, append material index
+      const parentKey = child.parent?.uuid || 'root';
+      if (!parentGroups.has(parentKey)) parentGroups.set(parentKey, []);
+      parentGroups.get(parentKey).push({ label, obj: child });
+    }
+  });
+  for (const group of parentGroups.values()) {
+    // Check if names within group are all the same (multi-material split)
+    const allSameName = group.every(g => g.label === group[0].label);
+    if (group.length === 1 || !allSameName) {
+      group.forEach(g => items.push({ name: g.label, obj: g.obj }));
+    } else {
+      group.forEach((g, i) => {
+        items.push({ name: `${g.label} [${i + 1}]`, obj: g.obj });
+      });
+    }
+  }
+
+  // Find armature (once)
+  let boneCount = 0;
+  model.traverse(child => { if (child.isBone) boneCount++; });
+  if (boneCount > 0) {
+    const div = document.createElement('div');
+    div.className = 'mesh-item armature';
+    div.textContent = `Armature (${boneCount} bones)`;
+    meshListEl.appendChild(div);
+  }
+
+  items.forEach(({ name, obj }) => {
+    const div = document.createElement('div');
+    div.className = 'mesh-item';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = obj.visible;
+    cb.addEventListener('change', () => { obj.visible = cb.checked; });
+    const label = document.createElement('span');
+    label.textContent = name;
+    div.appendChild(cb);
+    div.appendChild(label);
+    div.addEventListener('click', (e) => {
+      if (e.target !== cb) { cb.checked = !cb.checked; obj.visible = cb.checked; }
+    });
+    meshListEl.appendChild(div);
+  });
+}
+
+function centerModel(model) {
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  model.position.sub(new THREE.Vector3(center.x, box.min.y, center.z));
+  controls.target.set(0, size.y * 0.45, 0);
+  const maxDim = Math.max(size.x, size.y, size.z);
+  camera.position.set(0, size.y * 0.5, maxDim * 1.8);
+  controls.update();
+}
+
+async function loadModel(name) {
+  showLoading(true);
+
+  if (currentModel) {
+    scene.remove(currentModel);
+    currentModel.traverse(child => {
+      if (child.isMesh) {
+        child.geometry.dispose();
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose());
+        } else if (child.material) {
+          child.material.dispose();
+        }
+      }
+    });
+    currentModel = null;
+  }
+
+  try {
+    const gltf = await new Promise((resolve, reject) => {
+      loader.load(MODELS[name], resolve, undefined, reject);
+    });
+
+    const model = gltf.scene;
+
+    // Remove excluded objects (Icosphere etc.)
+    const toRemove = [];
+    model.traverse(child => {
+      if (EXCLUDE_NAMES.some(ex => child.name.includes(ex))) {
+        toRemove.push(child);
+      }
+    });
+    toRemove.forEach(obj => {
+      if (obj.isMesh) {
+        obj.geometry.dispose();
+        if (obj.material) {
+          (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach(m => m.dispose());
+        }
+      }
+      obj.removeFromParent();
+    });
+
+    scene.add(model);
+    currentModel = model;
+    currentName = name;
+
+    centerModel(model);
+    updateInfo(name, model);
+    buildMeshList(model);
+
+    // Update buttons
+    document.querySelectorAll('.model-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.model === name);
+    });
+  } catch (err) {
+    console.error('Failed to load model:', err);
+    alert(`Failed to load ${name}: ${err.message}`);
+  }
+
+  showLoading(false);
+}
+
+// --- Button events ---
+document.querySelectorAll('.model-btn').forEach(btn => {
+  btn.addEventListener('click', () => loadModel(btn.dataset.model));
+});
+
+// --- Resize ---
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// --- Render loop ---
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// --- Initial load ---
+loadModel('icaro');
+</script>
+</body>
+</html>

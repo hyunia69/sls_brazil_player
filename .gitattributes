@@ -1,0 +1,5 @@
+# Track Blender files with LFS
+blender/*.blend filter=lfs diff=lfs merge=lfs -text
+
+# PDFs
+docs-source/pdfs/*.pdf filter=lfs diff=lfs merge=lfs -text

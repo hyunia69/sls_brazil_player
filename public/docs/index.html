@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Documentation — Brazil SL Player</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #09090b;
+  --surface: #18181b;
+  --border: rgba(63, 63, 70, 0.5);
+  --text: #fafafa;
+  --text-2: #a1a1aa;
+  --text-3: #71717a;
+  --accent: #818cf8;
+  --accent-dim: #6366f1;
+  --green: #34d399;
+  --amber: #fbbf24;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text-2);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent), var(--accent-dim));
+  z-index: 100;
+}
+
+.container { max-width: 640px; width: 100%; padding: 2rem; }
+
+h1 { font-size: 1.75rem; font-weight: 650; color: var(--text); letter-spacing: -0.025em; margin-bottom: 0.5rem; }
+.subtitle { color: var(--text-3); font-size: 0.9375rem; margin-bottom: 2.5rem; }
+
+.section-label {
+  font-size: 0.6875rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-3); margin-bottom: 0.625rem; padding-left: 0.25rem;
+}
+
+.cards { display: flex; flex-direction: column; gap: 0.75rem; margin-bottom: 2rem; }
+
+a.card {
+  display: block; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 1.25rem 1.5rem; text-decoration: none;
+  transition: border-color 0.2s, transform 0.15s;
+}
+a.card:hover { border-color: var(--accent-dim); transform: translateY(-2px); }
+
+.card-title { font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: 0.35rem; }
+.card-desc { font-size: 0.8125rem; color: var(--text-3); line-height: 1.5; }
+
+.badge {
+  display: inline-block; padding: 0.15em 0.5em; border-radius: 100px;
+  font-size: 0.6875rem; font-weight: 500; vertical-align: middle; margin-left: 0.5em;
+}
+.badge-report { background: rgba(99, 102, 241, 0.08); color: var(--accent); border: 1px solid rgba(99, 102, 241, 0.25); }
+.badge-std { background: rgba(52, 211, 153, 0.08); color: var(--green); border: 1px solid rgba(52, 211, 153, 0.25); }
+.badge-impl { background: rgba(251, 191, 36, 0.08); color: var(--amber); border: 1px solid rgba(251, 191, 36, 0.25); }
+
+.back-link { display: inline-block; color: var(--accent); text-decoration: none; font-size: 0.875rem; margin-bottom: 1.5rem; }
+.back-link:hover { text-decoration: underline; }
+
+.footer { margin-top: 3rem; text-align: center; font-size: 0.75rem; color: var(--text-3); }
+</style>
+</head>
+<body>
+  <div class="container">
+    <a class="back-link" href="/">&larr; Back to Home</a>
+    <h1>Documentation</h1>
+    <p class="subtitle">ABNT NBR 25606 표준 분석 및 구현 문서</p>
+
+    <div class="section-label">Reports</div>
+    <div class="cards">
+      <a class="card" href="/docs/annex_d_progress_report_v2.html">
+        <div class="card-title">Annex D &mdash; Progress Report v2 <span class="badge badge-report">HTML</span></div>
+        <div class="card-desc">SLMB 파이프라인 구현 진행 보고서. 인코딩/디코딩, 좌표 변환, 검증 결과.</div>
+      </a>
+    </div>
+
+    <div class="section-label">Standard Analysis</div>
+    <div class="cards">
+      <a class="card" href="https://github.com/" target="_blank">
+        <div class="card-title">ABNT NBR 25606 Core Analysis <span class="badge badge-std">Standard</span></div>
+        <div class="card-desc">ABNT NBR 25606 핵심 분석. 46조인트 스켈레톤, 268 블렌드셰이프, 양자화 공식.</div>
+      </a>
+      <a class="card" href="https://github.com/" target="_blank">
+        <div class="card-title">ABNT NBR 25606 Annex A/B <span class="badge badge-std">Standard</span></div>
+        <div class="card-desc">Annex A(영상), B(글로스) 전송 방식 분석.</div>
+      </a>
+      <a class="card" href="https://github.com/" target="_blank">
+        <div class="card-title">ABNT NBR 25606 Annex C/D <span class="badge badge-std">Standard</span></div>
+        <div class="card-desc">Annex C(자막), D(모션/SLMB) 전송 방식 분석.</div>
+      </a>
+      <a class="card" href="https://github.com/" target="_blank">
+        <div class="card-title">SBTVD OG-06 Analysis <span class="badge badge-std">Standard</span></div>
+        <div class="card-desc">SBTVD OG-06 운영 가이드라인 분석 (비규범적).</div>
+      </a>
+    </div>
+
+    <div class="section-label">Implementation Docs</div>
+    <div class="cards">
+      <a class="card" href="https://github.com/" target="_blank">
+        <div class="card-title">Project Analysis <span class="badge badge-impl">Impl</span></div>
+        <div class="card-desc">프로젝트 종합 분석. 구조, 접근법, 자산 매핑.</div>
+      </a>
+      <a class="card" href="https://github.com/" target="_blank">
+        <div class="card-title">Technical Findings <span class="badge badge-impl">Impl</span></div>
+        <div class="card-desc">기술 검증 결과. 조인트 매핑, 스케일 팩터, 좌표계 변환.</div>
+      </a>
+      <a class="card" href="https://github.com/" target="_blank">
+        <div class="card-title">SLMB Converter 구현문서 <span class="badge badge-impl">Impl</span></div>
+        <div class="card-desc">SLMB 인코더/디코더 구현 상세 문서.</div>
+      </a>
+    </div>
+
+    <div class="footer">
+      Documentation &middot; Brazil SL Player &middot; ABNT NBR 25606
+    </div>
+  </div>
+</body>
+</html>

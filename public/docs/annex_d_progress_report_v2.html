@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ABNT NBR 25606 Annex D — SLMB Pipeline Report</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #09090b;
+  --surface: #18181b;
+  --surface-alt: #1f1f23;
+  --border: rgba(63, 63, 70, 0.5);
+  --border-solid: #2e2e35;
+  --text: #fafafa;
+  --text-2: #a1a1aa;
+  --text-3: #71717a;
+  --accent: #818cf8;
+  --accent-dim: #6366f1;
+  --accent-bg: rgba(99, 102, 241, 0.08);
+  --green: #34d399;
+  --green-bg: rgba(52, 211, 153, 0.08);
+  --green-border: rgba(52, 211, 153, 0.25);
+  --amber: #fbbf24;
+  --red: #f87171;
+  --mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', system-ui, sans-serif;
+  --radius: 8px;
+  --sidebar-w: 210px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text-2);
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---- Top accent line ---- */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent), var(--accent-dim));
+  z-index: 100;
+}
+
+/* ---- Layout ---- */
+.page { max-width: 1200px; margin: 0 auto; padding: 0 1.5rem; }
+
+.layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  gap: 4rem;
+  align-items: start;
+  padding-top: 1rem;
+}
+
+main { max-width: 820px; padding-bottom: 4rem; }
+
+/* ---- Sidebar ---- */
+.sidebar {
+  position: sticky;
+  top: 2rem;
+  padding-top: 2.5rem;
+}
+
+.sidebar-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-3);
+  margin-bottom: 1rem;
+}
+
+.sidebar nav a {
+  display: block;
+  padding: 0.3rem 0 0.3rem 0.875rem;
+  font-size: 0.8125rem;
+  color: var(--text-3);
+  text-decoration: none;
+  border-left: 1.5px solid transparent;
+  transition: all 0.2s ease;
+  line-height: 1.5;
+}
+
+.sidebar nav a:hover {
+  color: var(--text-2);
+}
+
+.sidebar nav a.active {
+  color: var(--text);
+  border-left-color: var(--accent);
+}
+
+/* ---- Header ---- */
+.report-header {
+  padding: 4rem 0 3rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 3.5rem;
+}
+
+.report-header h1 {
+  font-size: 1.75rem;
+  font-weight: 650;
+  color: var(--text);
+  letter-spacing: -0.025em;
+  line-height: 1.3;
+  margin-bottom: 0.5rem;
+}
+
+.report-header .subtitle {
+  font-size: 0.9375rem;
+  color: var(--text-3);
+  font-weight: 400;
+  margin-bottom: 1.5rem;
+}
+
+.meta-row {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  font-size: 0.8125rem;
+}
+
+.meta-item { color: var(--text-3); }
+.meta-item strong { color: var(--text-2); font-weight: 500; }
+
+/* ---- Badges ---- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.2em 0.65em;
+  border-radius: 100px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.badge-ok { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+.badge-wip { background: rgba(251, 191, 36, 0.08); color: var(--amber); border: 1px solid rgba(251, 191, 36, 0.25); }
+.badge-hi { background: rgba(248, 113, 113, 0.08); color: var(--red); border: 1px solid rgba(248, 113, 113, 0.25); }
+.badge-md { background: rgba(251, 191, 36, 0.08); color: var(--amber); border: 1px solid rgba(251, 191, 36, 0.25); }
+.badge-lo { background: var(--accent-bg); color: var(--accent); border: 1px solid rgba(99, 102, 241, 0.25); }
+
+.badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* ---- Sections ---- */
+.section {
+  margin-bottom: 3.5rem;
+  scroll-margin-top: 2rem;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.section.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-num {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.section-title {
+  font-size: 1.1875rem;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+/* ---- Prose ---- */
+.prose p { margin-bottom: 0.75rem; }
+.prose strong { color: var(--text); font-weight: 550; }
+.prose ul, .prose ol { padding-left: 1.25rem; margin-bottom: 0.75rem; }
+.prose li { margin-bottom: 0.35rem; }
+.prose li::marker { color: var(--text-3); }
+
+.prose h3 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 2rem 0 0.75rem;
+  letter-spacing: -0.005em;
+}
+
+/* ---- Cards ---- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.card-accent {
+  border-left: 2px solid var(--accent);
+}
+
+.card-green {
+  border-left: 2px solid var(--green);
+}
+
+.card-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  margin-bottom: 0.5rem;
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.75rem;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 0.75rem;
+}
+
+/* ---- Tables ---- */
+.table-wrap {
+  overflow-x: auto;
+  margin: 1rem 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+thead th {
+  text-align: left;
+  padding: 0.625rem 1rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-3);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+tbody td {
+  padding: 0.5625rem 1rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+  vertical-align: top;
+}
+
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: var(--surface); }
+
+tfoot td {
+  padding: 0.625rem 1rem;
+  font-weight: 600;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+  background: var(--surface);
+}
+
+.mono { font-family: var(--mono); font-size: 0.8rem; color: var(--accent); }
+
+/* ---- Code ---- */
+code {
+  font-family: var(--mono);
+  font-size: 0.84em;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 0.125em 0.375em;
+  border-radius: 4px;
+  color: var(--accent);
+}
+
+pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+  color: var(--text-2);
+  margin: 1rem 0;
+}
+
+pre code { background: none; border: none; padding: 0; color: inherit; font-size: inherit; }
+.c-cmt { color: var(--text-3); }
+.c-kw { color: var(--accent); }
+.c-str { color: var(--green); }
+.c-url { color: var(--accent); opacity: 0.8; }
+
+/* ---- Pipeline Diagram ---- */
+.pipeline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 2rem 0;
+  margin: 1.5rem 0;
+}
+
+.pipe-node {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border-solid);
+  border-radius: var(--radius);
+  padding: 0.75rem 2rem;
+  text-align: center;
+  font-weight: 550;
+  font-size: 0.875rem;
+  color: var(--text);
+  min-width: 260px;
+  transition: border-color 0.2s;
+}
+
+.pipe-node:hover { border-color: var(--accent-dim); }
+
+.pipe-node small {
+  display: block;
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--text-3);
+  margin-top: 0.15rem;
+}
+
+.pipe-node.accent-border { border-color: var(--accent-dim); }
+.pipe-node.green-border { border-color: rgba(52, 211, 153, 0.5); }
+
+.pipe-arrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.25rem 0;
+  color: var(--text-3);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pipe-arrow .line {
+  width: 1px;
+  height: 16px;
+  background: var(--border-solid);
+}
+
+.pipe-arrow .arrow {
+  width: 0; height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--border-solid);
+}
+
+.pipe-branch {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  position: relative;
+  padding-top: 1rem;
+}
+
+.pipe-branch::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 20%; right: 20%;
+  height: 1px;
+  background: var(--border-solid);
+}
+
+.pipe-branch .pipe-node {
+  min-width: 140px;
+  font-size: 0.8125rem;
+  padding: 0.5rem 1rem;
+}
+
+.pipe-branch .pipe-node::before {
+  content: '';
+  position: absolute;
+  top: -1rem; left: 50%;
+  width: 1px; height: 1rem;
+  background: var(--border-solid);
+}
+
+/* ---- Binary Tree ---- */
+.tree {
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.85;
+  padding: 1.25rem 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 1rem 0;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.t-root { color: var(--accent); font-weight: 600; }
+.t-branch { color: var(--text-3); }
+.t-node { color: var(--text); }
+.t-leaf { color: var(--green); }
+.t-dim { color: var(--text-3); }
+.t-hex { color: var(--amber); }
+
+/* ---- Issue Cards ---- */
+.issue {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent-dim);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.issue-title {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--text);
+  margin-bottom: 0.75rem;
+}
+
+.issue-row {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 0 0.75rem;
+  font-size: 0.8125rem;
+  margin-bottom: 0.25rem;
+}
+
+.issue-lbl { color: var(--text-3); font-weight: 500; }
+.issue-val { color: var(--text-2); }
+
+.issue-result {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--green-bg);
+  border: 1px solid var(--green-border);
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  color: var(--text-2);
+}
+
+.issue-result strong { color: var(--green); font-weight: 550; }
+
+/* ---- Stat ---- */
+.stat-block {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.25rem 1.5rem;
+  background: var(--accent-bg);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: var(--radius);
+  margin: 1.25rem 0;
+}
+
+.stat-num {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.stat-detail { font-size: 0.875rem; color: var(--text-2); line-height: 1.5; }
+.stat-detail small { display: block; font-size: 0.8rem; color: var(--text-3); }
+
+/* ---- References ---- */
+.ref-group { margin-bottom: 1.25rem; }
+
+.ref-group h4 {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  margin-bottom: 0.5rem;
+}
+
+.ref-group ul { list-style: none; padding: 0; }
+
+.ref-group li {
+  font-size: 0.8125rem;
+  padding: 0.25rem 0 0.25rem 1rem;
+  position: relative;
+  color: var(--text-2);
+}
+
+.ref-group li::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0.65rem;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
+.ref-group a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.ref-group a:hover { border-bottom-color: var(--accent); }
+
+/* ---- Priority List ---- */
+.prio-list { list-style: none; padding: 0; }
+
+.prio-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.875rem;
+}
+
+.prio-item:last-child { border-bottom: none; }
+
+/* ---- Status Row ---- */
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.8125rem;
+}
+
+.status-row:last-child { border-bottom: none; }
+.status-name { flex: 0 0 200px; color: var(--text); font-weight: 500; }
+.status-desc { color: var(--text-2); }
+
+/* ---- Footer ---- */
+.report-footer {
+  text-align: center;
+  padding: 2rem 0;
+  border-top: 1px solid var(--border);
+  margin-top: 1rem;
+  font-size: 0.75rem;
+  color: var(--text-3);
+}
+
+/* ---- Inline TOC (mobile) ---- */
+.toc-inline {
+  display: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.toc-inline .sidebar-label { margin-bottom: 0.75rem; }
+
+.toc-inline nav {
+  columns: 2;
+  column-gap: 1.5rem;
+}
+
+.toc-inline nav a {
+  display: block;
+  padding: 0.2rem 0;
+  font-size: 0.8125rem;
+  color: var(--text-3);
+  text-decoration: none;
+  break-inside: avoid;
+  transition: color 0.2s;
+}
+
+.toc-inline nav a:hover { color: var(--text); }
+
+/* ---- Responsive ---- */
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .sidebar { display: none; }
+  .toc-inline { display: block; }
+  main { max-width: 100%; }
+}
+
+@media (max-width: 640px) {
+  .report-header h1 { font-size: 1.375rem; }
+  .meta-row { flex-direction: column; gap: 0.35rem; }
+  .grid-2 { grid-template-columns: 1fr; }
+  .pipe-branch { flex-direction: column; align-items: center; }
+  .pipe-branch::before { display: none; }
+  .pipe-branch .pipe-node::before { display: none; }
+  .status-row { flex-direction: column; gap: 0.25rem; }
+  .status-name { flex: none; }
+  .issue-row { grid-template-columns: 1fr; }
+  .toc-inline nav { columns: 1; }
+  .stat-block { flex-direction: column; text-align: center; }
+}
+
+/* ---- Print ---- */
+@media print {
+  :root {
+    --bg: #fff;
+    --surface: #f9f9fb;
+    --border: #e4e4e7;
+    --border-solid: #d4d4d8;
+    --text: #09090b;
+    --text-2: #3f3f46;
+    --text-3: #71717a;
+    --accent: #4f46e5;
+    --accent-dim: #4338ca;
+    --accent-bg: rgba(79, 70, 229, 0.05);
+    --green: #059669;
+    --green-bg: rgba(5, 150, 105, 0.05);
+    --green-border: rgba(5, 150, 105, 0.2);
+  }
+  body { font-size: 10pt; }
+  body::before { display: none; }
+  .sidebar { display: none; }
+  .toc-inline { display: block; break-after: page; }
+  .layout { grid-template-columns: 1fr; }
+  .section { opacity: 1; transform: none; break-inside: avoid; }
+  .card, .issue, pre, .tree, .pipeline, .table-wrap { break-inside: avoid; }
+  .pipe-node { box-shadow: none; }
+  a { color: var(--accent); }
+}
+</style>
+</head>
+
+<body>
+<div class="page">
+  <!-- ===== HEADER ===== -->
+  <header class="report-header">
+    <h1>ABNT NBR 25606 Annex D<br>SLMB 플레이어 개발 진행 보고서</h1>
+    <p class="subtitle">Sign Language Motion Bundle &mdash; Pipeline Implementation Report</p>
+    <div class="meta-row">
+      <span class="meta-item">Date <strong>2026-04-06</strong></span>
+      <span class="meta-item">Standard <strong>ABNT NBR 25606:2025</strong></span>
+      <span class="meta-item">Status <span class="badge badge-ok">Pipeline 완료</span></span>
+    </div>
+  </header>
+
+  <!-- ===== INLINE TOC (mobile/tablet) ===== -->
+  <div class="toc-inline">
+    <div class="sidebar-label">목차</div>
+    <nav>
+      <a href="#s1">01. 프로젝트 개요</a>
+      <a href="#s2">02. 파이프라인 구성</a>
+      <a href="#s3">03. SLMB 바이너리 포맷</a>
+      <a href="#s4">04. 사용 데이터</a>
+      <a href="#s5">05. 아바타 모델</a>
+      <a href="#s6">06. 플레이어 구현</a>
+      <a href="#s7">07. 기술 이슈 해결</a>
+      <a href="#s8">08. 참조 표준</a>
+      <a href="#s9">09. 실행 방법</a>
+      <a href="#s10">10. 현재 상태</a>
+      <a href="#s11">11. 향후 과제</a>
+    </nav>
+  </div>
+
+  <div class="layout">
+    <!-- ===== SIDEBAR TOC ===== -->
+    <aside class="sidebar">
+      <div class="sidebar-label">목차</div>
+      <nav id="toc-nav">
+        <a href="#s1">프로젝트 개요</a>
+        <a href="#s2">파이프라인 구성</a>
+        <a href="#s3">SLMB 바이너리 포맷</a>
+        <a href="#s4">사용 데이터</a>
+        <a href="#s5">아바타 모델</a>
+        <a href="#s6">플레이어 구현</a>
+        <a href="#s7">기술 이슈 해결</a>
+        <a href="#s8">참조 표준</a>
+        <a href="#s9">실행 방법</a>
+        <a href="#s10">현재 상태</a>
+        <a href="#s11">향후 과제</a>
+      </nav>
+    </aside>
+
+    <!-- ===== MAIN CONTENT ===== -->
+    <main>
+
+      <!-- 1 -->
+      <section class="section" id="s1">
+        <div class="section-head">
+          <span class="section-num">01</span>
+          <h2 class="section-title">프로젝트 개요</h2>
+        </div>
+        <div class="prose">
+          <p>본 프로젝트는 <strong>ABNT NBR 25606:2025</strong> TV 3.0 Closed Signing 표준의 <strong>Annex D (수어 모션 스트림)</strong>을 구현한다. 브라질 수어(Libras) 모션 데이터를 <strong>SLMB(Sign Language Motion Bundle)</strong> 바이너리 포맷으로 인코딩/디코딩하고, 3D 아바타를 통해 실시간으로 재생하는 전체 파이프라인을 개발하였다.</p>
+          <ul>
+            <li><strong>대상 표준</strong> &mdash; ABNT NBR 25606:2025, Annex D (Sign Language Motion Stream)</li>
+            <li><strong>구현 범위</strong> &mdash; SLMB 인코더/디코더, 3개 출력 포맷(JSON/BVH/glTF), 웹 기반 3D 플레이어</li>
+            <li><strong>렌더링 엔진</strong> &mdash; Three.js v0.170.0 (WebGL)</li>
+            <li><strong>현재 상태</strong> &mdash; ABNT SLMB 파이프라인 전체 구현 및 검증 완료</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- 2 -->
+      <section class="section" id="s2">
+        <div class="section-head">
+          <span class="section-num">02</span>
+          <h2 class="section-title">파이프라인 구성</h2>
+        </div>
+
+        <div class="pipeline">
+          <div class="pipe-node accent-border">BVH<small>원본 모션 캡처 데이터</small></div>
+          <div class="pipe-arrow"><span class="line"></span>SLMB ENCODER<span class="arrow"></span></div>
+          <div class="pipe-node accent-border">.slmb.xz<small>LZMA 압축 바이너리 (ABNT Annex D)</small></div>
+          <div class="pipe-arrow"><span class="line"></span>SLMB DECODER<span class="arrow"></span></div>
+          <div class="pipe-branch">
+            <div class="pipe-node green-border">JSON<small>웹 플레이어</small></div>
+            <div class="pipe-node green-border">BVH<small>라운드트립 검증</small></div>
+            <div class="pipe-node green-border">glTF<small>3D 모델 포맷</small></div>
+          </div>
+          <div class="pipe-arrow"><span class="line"></span>THREE.JS PLAYER<span class="arrow"></span></div>
+          <div class="pipe-node">Samsung MyEmoji 아바타 렌더링<small>WebGL Real-time Playback</small></div>
+        </div>
+
+        <div class="prose">
+          <h3>SLMB Converter 모듈 구성</h3>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>모듈</th><th>코드량</th><th>기능</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">constants.py</td><td>432줄</td><td>ABNT Table D.9 조인트 &middot; 블렌드셰이프 정의</td></tr>
+              <tr><td class="mono">slmb_encoder.py</td><td>387줄</td><td>BVH &rarr; SLMB 바이너리 인코딩 + LZMA/xz 압축</td></tr>
+              <tr><td class="mono">slmb_decoder.py</td><td>329줄</td><td>SLMB &rarr; BodyMotionBlock + FaceMotionBlock 파싱</td></tr>
+              <tr><td class="mono">bvh_parser.py</td><td>269줄</td><td>BVH 텍스트 포맷 파서</td></tr>
+              <tr><td class="mono">bvh_writer.py</td><td>166줄</td><td>SLMB &rarr; BVH 재구성 (쿼터니언/오일러 변환)</td></tr>
+              <tr><td class="mono">gltf_writer.py</td><td>304줄</td><td>SLMB &rarr; glTF 2.0 스켈레탈 애니메이션 출력</td></tr>
+              <tr><td class="mono">json_writer.py</td><td>111줄</td><td>SLMB &rarr; JSON 웹 플레이어 포맷</td></tr>
+              <tr><td class="mono">math_utils.py</td><td>316줄</td><td>쿼터니언 &harr; 오일러 변환, 좌표계 변환 유틸리티</td></tr>
+              <tr><td class="mono">face_data.py</td><td>256줄</td><td>프로시저럴 블렌드셰이프 데이터 생성</td></tr>
+              <tr><td class="mono">main.py</td><td>266줄</td><td>CLI 인터페이스 (encode / decode / roundtrip / info)</td></tr>
+            </tbody>
+            <tfoot><tr><td>합계</td><td>2,845줄</td><td>순수 Python, 외부 의존성 없음</td></tr></tfoot>
+          </table>
+        </div>
+      </section>
+
+      <!-- 3 -->
+      <section class="section" id="s3">
+        <div class="section-head">
+          <span class="section-num">03</span>
+          <h2 class="section-title">SLMB 바이너리 포맷</h2>
+        </div>
+
+        <div class="tree"><span class="t-root">.slmb.xz</span>
+<span class="t-branch">  &boxur;&boxh;</span> <span class="t-dim">[LZMA/xz 압축 해제]</span>
+<span class="t-branch">      &boxur;&boxh;</span> <span class="t-root">MotionBundle</span>
+<span class="t-branch">          &boxvr;&boxh;</span> <span class="t-node">SLMB_TITLE_KEY</span>  <span class="t-hex">(0x534C4D42 = "SLMB")</span>
+<span class="t-branch">          &boxvr;&boxh;</span> <span class="t-node">BodyMotionBlock</span>
+<span class="t-branch">          &boxv;   &boxvr;&boxh;</span> <span class="t-leaf">num_frames</span>           <span class="t-dim">32bit uint</span>
+<span class="t-branch">          &boxv;   &boxvr;&boxh;</span> <span class="t-leaf">frame_time</span>           <span class="t-dim">32bit float (IEEE 754)</span>
+<span class="t-branch">          &boxv;   &boxur;&boxh;</span> <span class="t-leaf">46 joints &times; N frames</span>  <span class="t-dim">양자화 데이터</span>
+<span class="t-branch">          &boxur;&boxh;</span> <span class="t-node">FaceMotionBlock</span>
+<span class="t-branch">              &boxvr;&boxh;</span> <span class="t-leaf">num_frames</span>           <span class="t-dim">32bit uint</span>
+<span class="t-branch">              &boxur;&boxh;</span> <span class="t-leaf">268 blendshapes</span>      <span class="t-dim">uint16 가중치</span></div>
+
+        <div class="prose"><h3>46 Joint 타입별 인코딩 (ABNT Table D.9)</h3></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>타입</th><th>개수</th><th>인코딩</th><th>비트/프레임</th><th>대상</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">Type-0</td><td>1</td><td>Translation (uint16&times;3) + Quaternion (int16&times;3)</td><td>144</td><td>루트 (hips_JNT)</td></tr>
+              <tr><td class="mono">Type-1</td><td>15</td><td>Quaternion only (int16&times;3)</td><td>48</td><td>주요 골격</td></tr>
+              <tr><td class="mono">Type-2</td><td>8</td><td>Euler 3축 패킹 (10+10+12 bits)</td><td>32</td><td>손바닥 관절</td></tr>
+              <tr><td class="mono">Type-3</td><td>20</td><td>Z축 Euler (8 bits)</td><td>8</td><td>손가락 관절</td></tr>
+              <tr><td class="mono">Type-4</td><td>2</td><td>X/Y Euler (8+8 bits)</td><td>16</td><td>눈 위치</td></tr>
+            </tbody>
+            <tfoot><tr><td>합계</td><td>46</td><td></td><td colspan="2">프레임당 158 bytes</td></tr></tfoot>
+          </table>
+        </div>
+
+        <div class="prose"><h3>양자화 정밀도</h3></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>데이터</th><th>원본 범위</th><th>양자화</th><th>정밀도</th></tr></thead>
+            <tbody>
+              <tr><td>Translation (Type-0)</td><td>[-0.5m, 0.5m]</td><td>uint16 &mdash; 65,535 steps</td><td>&plusmn;0.015 mm</td></tr>
+              <tr><td>Quaternion (Type-0/1)</td><td>[-1, 1]</td><td>int16 &mdash; 32,767 steps</td><td>&plusmn;0.000061</td></tr>
+              <tr><td>Euler XY (Type-2)</td><td>[-90&deg;, 90&deg;]</td><td>10-bit &mdash; 1,024 steps</td><td>&plusmn;0.176&deg;</td></tr>
+              <tr><td>Euler Z (Type-2)</td><td>[-180&deg;, 180&deg;]</td><td>12-bit &mdash; 4,096 steps</td><td>&plusmn;0.088&deg;</td></tr>
+              <tr><td>Euler Z (Type-3)</td><td>[-180&deg;, 180&deg;]</td><td>8-bit &mdash; 256 steps</td><td>&plusmn;1.41&deg;</td></tr>
+              <tr><td>Blendshape</td><td>[0, 1]</td><td>uint16 &mdash; 65,535 steps</td><td>&plusmn;0.0015%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 4 -->
+      <section class="section" id="s4">
+        <div class="section-head">
+          <span class="section-num">04</span>
+          <h2 class="section-title">사용 데이터</h2>
+        </div>
+
+        <div class="card card-accent">
+          <div class="card-label">레퍼런스 애니메이션</div>
+          <div class="card-title">data/avatarModel.bvh</div>
+          <div class="prose" style="font-size:0.8125rem;">
+            <p>SBTVD OG-06 운영 가이드라인에 포함된 공식 참조 애니메이션.<br>
+            142 프레임 &middot; 30 fps &middot; 4.73초 &middot; 46 조인트 (ABNT 표준 스켈레톤)</p>
+          </div>
+        </div>
+
+        <div class="prose"><h3>라운드트립 검증 파일</h3></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>파일</th><th>크기</th><th>용도</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">avatarModel.slmb.xz</td><td>10 KB</td><td>LZMA/xz 압축 SLMB 바이너리</td></tr>
+              <tr><td class="mono">avatarModel_roundtrip.bvh</td><td>375 KB</td><td>BVH 라운드트립 검증</td></tr>
+              <tr><td class="mono">avatarModel_roundtrip.gltf + .bin</td><td>35 + 164 KB</td><td>glTF 2.0 라운드트립 검증</td></tr>
+              <tr><td class="mono">avatarModel_roundtrip_slmb.json</td><td>267 KB</td><td>JSON 웹 플레이어 포맷</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="stat-block">
+          <div class="stat-num">18&times;</div>
+          <div class="stat-detail">
+            압축률 &mdash; 545 KB &rarr; 10 KB
+            <small>방송 스트리밍 대역폭 약 17 kbps (4.73초 모션 기준)</small>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5 -->
+      <section class="section" id="s5">
+        <div class="section-head">
+          <span class="section-num">05</span>
+          <h2 class="section-title">아바타 모델</h2>
+        </div>
+
+        <div class="card card-green">
+          <div class="card-label">ABNT 공식 레퍼런스 아바타</div>
+          <div class="card-title">Samsung MyEmoji v3.1</div>
+          <div class="prose" style="font-size:0.8125rem;">
+            <ul>
+              <li>경로: <code>data/avatarModel/model_external.gltf</code></li>
+              <li>포맷: glTF 2.0 &mdash; <code>.gltf</code> + <code>.bin</code> + 29 PNG 텍스처</li>
+              <li>스켈레톤: ABNT 46 조인트와 <strong>100% 명칭 매칭</strong></li>
+              <li>블렌드셰이프: ABNT Table D.11 완전 호환 (268개, 6 메시)</li>
+              <li>스케일: RootNode <code>scale=[100,100,100]</code> &rarr; Three.js <code>&times;0.01</code> 적용 필수</li>
+              <li>검증: BVH offset(cm) &times; 100 = glTF translation(m) 정확 대응 확인</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="prose"><h3>블렌드셰이프 메시 구성 (268개)</h3></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>메시</th><th>ID 범위</th><th>개수</th><th>대상</th></tr></thead>
+            <tbody>
+              <tr><td class="mono">head_GEO</td><td>0 &ndash; 67</td><td>68</td><td>얼굴 전체</td></tr>
+              <tr><td class="mono">mouth_GEO</td><td>1020 &ndash; 1067</td><td>48</td><td>입 / 혀</td></tr>
+              <tr><td class="mono">eyelash_GEO</td><td>2000 &ndash; 2059</td><td>60</td><td>눈꺼풀 / 속눈썹</td></tr>
+              <tr><td class="mono">eyebrow_l_GEO</td><td>3014 &ndash; 3058</td><td>45</td><td>왼쪽 눈썹</td></tr>
+              <tr><td class="mono">eyebrow_r_GEO</td><td>4014 &ndash; 4058</td><td>45</td><td>오른쪽 눈썹</td></tr>
+              <tr><td class="mono">iris_l/r_GEO</td><td>5059, 6059</td><td>2</td><td>동공</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 6 -->
+      <section class="section" id="s6">
+        <div class="section-head">
+          <span class="section-num">06</span>
+          <h2 class="section-title">플레이어 구현</h2>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-title">player_bvh <span class="badge badge-ok">완료</span></div>
+            <div class="prose" style="font-size:0.8125rem;">
+              <ul>
+                <li>경로: <code>slmb-player/player_bvh/</code></li>
+                <li>드래그앤드롭 BVH 파일 로딩</li>
+                <li>스켈레톤 시각화 + 재생 제어</li>
+                <li>단일 HTML, Three.js v0.170.0</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">player_bvh_slmb <span class="badge badge-ok">완료</span></div>
+            <div class="prose" style="font-size:0.8125rem;">
+              <ul>
+                <li>경로: <code>slmb-player/player_bvh_slmb/</code></li>
+                <li>3개 소스 동시 지원:
+                  <ul>
+                    <li>SLMB JSON &mdash; JSON &rarr; AnimationClip</li>
+                    <li>Roundtrip BVH &mdash; BVHLoader &rarr; 필터</li>
+                    <li>Roundtrip glTF &mdash; GLTFLoader &rarr; Clip</li>
+                  </ul>
+                </li>
+                <li>Samsung MyEmoji glTF 자동 로드</li>
+                <li>재생 / 정지 / 속도 / 타임라인 / 스켈레톤 토글</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:0.25rem;">
+          <div class="card-label" style="color:var(--green);">검증 결과</div>
+          <div class="prose" style="font-size:0.8125rem;">
+            <p>3개 소스(JSON, BVH, glTF) 모두 동일 아바타에서 <strong>동일 모션 렌더링</strong> 확인 완료. 142프레임 &middot; 30fps &middot; 4.73초 &middot; 46조인트 기준.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7 -->
+      <section class="section" id="s7">
+        <div class="section-head">
+          <span class="section-num">07</span>
+          <h2 class="section-title">핵심 기술 이슈 해결</h2>
+        </div>
+
+        <div class="issue">
+          <div class="issue-title">Bug #1 &mdash; Type-2/3 Qr 역변환 누락</div>
+          <div class="issue-row"><span class="issue-lbl">증상</span><span class="issue-val">오른손 조인트 ~180&deg; 오회전</span></div>
+          <div class="issue-row"><span class="issue-lbl">원인</span><span class="issue-val">인코더 <code>Q_enc = Q_bvh &times; Qr</code>, 디코더에서 Qr inverse 미적용</span></div>
+          <div class="issue-row"><span class="issue-lbl">해결</span><span class="issue-val"><code>Q_bvh = Q_enc &times; inv(Qr)</code> 적용</span></div>
+          <div class="issue-result"><strong>결과</strong> &mdash; 최대 오차 180.53&deg; &rarr; 0.71&deg; &nbsp;&middot;&nbsp; 평균 18.65&deg; &rarr; 0.13&deg;</div>
+        </div>
+
+        <div class="issue">
+          <div class="issue-title">Bug #2 &mdash; glTF RootNode Scale 100&times;</div>
+          <div class="issue-row"><span class="issue-lbl">증상</span><span class="issue-val">아바타 100배 크기로 렌더링</span></div>
+          <div class="issue-row"><span class="issue-lbl">원인</span><span class="issue-val">Samsung MyEmoji RootNode <code>scale=[100,100,100]</code></span></div>
+          <div class="issue-row"><span class="issue-lbl">해결</span><span class="issue-val">Three.js <code>scale.set(0.01, 0.01, 0.01)</code></span></div>
+          <div class="issue-result"><strong>근거</strong> &mdash; BVH spine offset = 4.13 cm &rarr; glTF translation = 0.0413 m (정확 100배)</div>
+        </div>
+      </section>
+
+      <!-- 8 -->
+      <section class="section" id="s8">
+        <div class="section-head">
+          <span class="section-num">08</span>
+          <h2 class="section-title">참조 표준 및 웹사이트</h2>
+        </div>
+
+        <div class="card">
+          <div class="ref-group">
+            <h4>ABNT 표준</h4>
+            <ul>
+              <li><strong>ABNT NBR 25606:2025</strong> &mdash; TV 3.0 Closed Signing (핵심 표준)</li>
+              <li>ABNT NBR 25601~25609 &mdash; TV 3.0 표준 프레임워크</li>
+              <li>SBTVD OG-06 &mdash; 운영 가이드라인 (아바타 모델, 참조 구현)</li>
+            </ul>
+          </div>
+          <div class="ref-group">
+            <h4>국제 표준</h4>
+            <ul>
+              <li>ISO/IEC 14496-30:2018 &mdash; ISOBMFF Timed Text</li>
+              <li>ISO/IEC 23000-19:2024 &mdash; CMAF Streaming</li>
+              <li>IEEE 754 &mdash; 부동소수점 연산</li>
+              <li>W3C IMSC1:2020 &mdash; TTML 프로파일</li>
+              <li>RFC 5646 &mdash; 언어 태그</li>
+            </ul>
+          </div>
+          <div class="ref-group">
+            <h4>웹 기술 및 참조 사이트</h4>
+            <ul>
+              <li>Three.js v0.170.0 &mdash; <a href="https://threejs.org/" target="_blank">threejs.org</a></li>
+              <li>glTF 2.0 &mdash; <a href="https://www.khronos.org/gltf/" target="_blank">khronos.org/gltf</a></li>
+              <li>CDN &mdash; <a href="https://cdn.jsdelivr.net/npm/three@0.170.0" target="_blank">cdn.jsdelivr.net/npm/three@0.170.0</a></li>
+              <li>SBTVD Forum &mdash; <a href="https://forumsbtvd.org.br/" target="_blank">forumsbtvd.org.br</a></li>
+              <li>VLibras &mdash; <a href="https://vlibras.gov.br/" target="_blank">vlibras.gov.br</a> (참조)</li>
+              <li>VLibras 번역 API &mdash; traducao2.vlibras.gov.br/translate</li>
+              <li>VLibras 사전 CDN &mdash; dicionario2.vlibras.gov.br/bundles</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 9 -->
+      <section class="section" id="s9">
+        <div class="section-head">
+          <span class="section-num">09</span>
+          <h2 class="section-title">실행 방법</h2>
+        </div>
+
+        <pre><code><span class="c-cmt"># 로컬 서버 실행</span>
+<span class="c-kw">cd</span> D:/lg/work/SLS/brazil/code/player
+<span class="c-kw">python</span> -m http.server <span class="c-str">8080</span>
+
+<span class="c-cmt"># 플레이어 접속</span>
+<span class="c-url">http://localhost:8080/slmb-player/player_bvh/</span>
+<span class="c-url">http://localhost:8080/slmb-player/player_bvh_slmb/</span>
+
+<span class="c-cmt"># SLMB 변환기</span>
+<span class="c-kw">python</span> -m slmb_converter encode data/avatarModel.bvh output.slmb.xz
+<span class="c-kw">python</span> -m slmb_converter roundtrip data/avatarModel.bvh
+<span class="c-kw">python</span> -m slmb_converter info data/avatarModel.slmb.xz</code></pre>
+      </section>
+
+      <!-- 10 -->
+      <section class="section" id="s10">
+        <div class="section-head">
+          <span class="section-num">10</span>
+          <h2 class="section-title">현재 상태 요약</h2>
+        </div>
+
+        <div class="card" style="padding:1rem 1.5rem;">
+          <div class="status-row"><span class="status-name">SLMB Encoder / Decoder</span><span class="badge badge-ok">완료</span><span class="status-desc">인코딩 / 디코딩 / 라운드트립 전체 검증</span></div>
+          <div class="status-row"><span class="status-name">BVH Parser / Writer</span><span class="badge badge-ok">완료</span><span class="status-desc">양자화 손실 포함 양방향 변환</span></div>
+          <div class="status-row"><span class="status-name">glTF Writer</span><span class="badge badge-ok">완료</span><span class="status-desc">glTF 2.0 스켈레탈 애니메이션 출력</span></div>
+          <div class="status-row"><span class="status-name">JSON Writer</span><span class="badge badge-ok">완료</span><span class="status-desc">웹 플레이어용 JSON 포맷 출력</span></div>
+          <div class="status-row"><span class="status-name">player_bvh</span><span class="badge badge-ok">완료</span><span class="status-desc">BVH 전용 플레이어</span></div>
+          <div class="status-row"><span class="status-name">player_bvh_slmb</span><span class="badge badge-ok">완료</span><span class="status-desc">3소스 파이프라인 검증 플레이어</span></div>
+          <div class="status-row"><span class="status-name">블렌드셰이프 매핑</span><span class="badge badge-ok">완료</span><span class="status-desc">268개 ID 정의 (실시간 재생 미구현)</span></div>
+        </div>
+      </section>
+
+      <!-- 11 -->
+      <section class="section" id="s11">
+        <div class="section-head">
+          <span class="section-num">11</span>
+          <h2 class="section-title">향후 과제</h2>
+        </div>
+
+        <ul class="prio-list">
+          <li class="prio-item"><span class="badge badge-hi">높음</span>TTML / IMSC1 시간 동기화 계층 구현 &mdash; 방송 스트리밍 시 SLMB 파일과 프로그램 타임라인 동기화</li>
+          <li class="prio-item"><span class="badge badge-hi">높음</span>DASH / CMAF 전송 계층 연동 &mdash; ISOBMFF 캡슐화 및 세그먼트 기반 전송</li>
+          <li class="prio-item"><span class="badge badge-md">중간</span>얼굴 블렌드셰이프 실시간 재생 구현 &mdash; FaceMotionBlock 디코딩 결과를 아바타 메시에 적용</li>
+          <li class="prio-item"><span class="badge badge-md">중간</span>VLibras &rarr; SLMB 변환 파이프라인 완성 &mdash; 84본 VLibras 스켈레톤에서 46본 ABNT 매핑</li>
+          <li class="prio-item"><span class="badge badge-lo">낮음</span>다양한 수어 단어 / 문장 테스트 확대 &mdash; CASA 외 추가 번들로 파이프라인 안정성 검증</li>
+        </ul>
+      </section>
+
+      <footer class="report-footer">
+        ABNT NBR 25606 Annex D &mdash; SLMB Pipeline Report &middot; Generated 2026-04-06
+      </footer>
+    </main>
+  </div>
+</div>
+
+<script>
+// ---- Intersection Observer: Active TOC + Section Reveal ----
+(function() {
+  const sections = document.querySelectorAll('.section');
+  const tocLinks = document.querySelectorAll('#toc-nav a');
+
+  const revealObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) e.target.classList.add('visible');
+    });
+  }, { threshold: 0.08, rootMargin: '0px 0px -60px 0px' });
+
+  sections.forEach(s => revealObs.observe(s));
+
+  const tocObs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        tocLinks.forEach(a => a.classList.remove('active'));
+        const id = e.target.getAttribute('id');
+        const link = document.querySelector('#toc-nav a[href="#' + id + '"]');
+        if (link) link.classList.add('active');
+      }
+    });
+  }, { threshold: 0.15, rootMargin: '-10% 0px -70% 0px' });
+
+  sections.forEach(s => tocObs.observe(s));
+})();
+</script>
+</body>
+</html>

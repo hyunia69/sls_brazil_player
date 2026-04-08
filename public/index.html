@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Brazil Sign Language Player</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #09090b;
+  --surface: #18181b;
+  --border: rgba(63, 63, 70, 0.5);
+  --text: #fafafa;
+  --text-2: #a1a1aa;
+  --text-3: #71717a;
+  --accent: #818cf8;
+  --accent-dim: #6366f1;
+  --green: #34d399;
+  --amber: #fbbf24;
+  --blue: #60a5fa;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text-2);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-font-smoothing: antialiased;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-dim), var(--accent), var(--accent-dim));
+  z-index: 100;
+}
+
+.container {
+  max-width: 640px;
+  width: 100%;
+  padding: 2rem;
+}
+
+h1 {
+  font-size: 1.75rem;
+  font-weight: 650;
+  color: var(--text);
+  letter-spacing: -0.025em;
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  color: var(--text-3);
+  font-size: 0.9375rem;
+  margin-bottom: 2.5rem;
+}
+
+.section-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+  margin-bottom: 0.625rem;
+  padding-left: 0.25rem;
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 2rem;
+}
+
+a.card {
+  display: block;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  text-decoration: none;
+  transition: border-color 0.2s, transform 0.15s;
+}
+
+a.card:hover {
+  border-color: var(--accent-dim);
+  transform: translateY(-2px);
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.35rem;
+}
+
+.card-desc {
+  font-size: 0.8125rem;
+  color: var(--text-3);
+  line-height: 1.5;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15em 0.5em;
+  border-radius: 100px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  vertical-align: middle;
+  margin-left: 0.5em;
+}
+
+.badge-player {
+  background: rgba(52, 211, 153, 0.08);
+  color: var(--green);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+}
+
+.badge-done {
+  background: rgba(52, 211, 153, 0.08);
+  color: var(--green);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+}
+
+.badge-wip {
+  background: rgba(251, 191, 36, 0.08);
+  color: var(--amber);
+  border: 1px solid rgba(251, 191, 36, 0.25);
+}
+
+.badge-report {
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--accent);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.badge-viewer {
+  background: rgba(96, 165, 250, 0.08);
+  color: var(--blue);
+  border: 1px solid rgba(96, 165, 250, 0.25);
+}
+
+.badge-tool {
+  background: rgba(161, 161, 170, 0.08);
+  color: var(--text-2);
+  border: 1px solid rgba(161, 161, 170, 0.25);
+}
+
+.footer {
+  margin-top: 3rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-3);
+}
+
+.footer a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <h1>Brazil Sign Language Player</h1>
+    <p class="subtitle">LIBRAS 3D Avatar Player &mdash; ABNT NBR 25606 / VLibras</p>
+
+    <div class="section-label">ABNT Standard Players</div>
+    <div class="cards">
+      <a class="card" href="/players/bvh/">
+        <div class="card-title">BVH Player <span class="badge badge-player">WebGL</span> <span class="badge badge-done">ABNT</span></div>
+        <div class="card-desc">BVH 파일 직접 파싱 &amp; 재생. ABNT 46조인트 스켈레톤, Three.js 렌더링.</div>
+      </a>
+
+      <a class="card" href="/players/slmb/">
+        <div class="card-title">SLMB Pipeline Player <span class="badge badge-player">WebGL</span> <span class="badge badge-done">ABNT</span></div>
+        <div class="card-desc">SLMB 인코딩/디코딩 파이프라인 검증. JSON, BVH, glTF 3소스 동시 재생 비교.</div>
+      </a>
+    </div>
+
+    <div class="section-label">VLibras Players</div>
+    <div class="cards">
+      <a class="card" href="/players/vlibras/">
+        <div class="card-title">VLibras Player <span class="badge badge-player">WebGL</span> <span class="badge badge-wip">VLibras</span></div>
+        <div class="card-desc">VLibras 아바타 애니메이션 재생. Padrao, CASA, Icaro 모델 선택 가능.</div>
+      </a>
+
+      <a class="card" href="/players/vlibras-v3/">
+        <div class="card-title">VLibras Player v3 <span class="badge badge-player">WebGL</span> <span class="badge badge-wip">VLibras</span></div>
+        <div class="card-desc">VLibras 플레이어 v3. Three.js 포맷 애니메이션 데이터 사용.</div>
+      </a>
+
+      <a class="card" href="/players/viewer/">
+        <div class="card-title">Model Viewer <span class="badge badge-viewer">Viewer</span></div>
+        <div class="card-desc">3D 아바타 모델 뷰어. 메시, 스켈레톤, 본 구조 인터랙티브 검사.</div>
+      </a>
+    </div>
+
+    <div class="section-label">Documentation</div>
+    <div class="cards">
+      <a class="card" href="/docs/">
+        <div class="card-title">Documentation Index <span class="badge badge-report">Docs</span></div>
+        <div class="card-desc">ABNT 표준 분석, 구현 문서, 진행 보고서 모음.</div>
+      </a>
+
+      <a class="card" href="/docs/annex_d_progress_report_v2.html">
+        <div class="card-title">Annex D &mdash; Progress Report v2 <span class="badge badge-report">HTML</span></div>
+        <div class="card-desc">SLMB 파이프라인 구현 진행 보고서. 인코딩/디코딩, 좌표 변환, 검증 결과.</div>
+      </a>
+    </div>
+
+    <div class="section-label">Tools (Offline)</div>
+    <div class="cards">
+      <a class="card" href="#" onclick="return false;" style="cursor: default; opacity: 0.7;">
+        <div class="card-title">SLMB Converter <span class="badge badge-tool">Python</span></div>
+        <div class="card-desc">BVH/SLMB 인코딩 &amp; 디코딩 도구. 로컬 Python 환경에서 실행.</div>
+      </a>
+
+      <a class="card" href="#" onclick="return false;" style="cursor: default; opacity: 0.7;">
+        <div class="card-title">VLibras→SLMB Converter <span class="badge badge-tool">Python</span></div>
+        <div class="card-desc">VLibras AssetBundle → SLMB 포맷 변환 파이프라인.</div>
+      </a>
+    </div>
+
+    <div class="footer">
+      Brazil SL Player &middot; ABNT NBR 25606 &middot; Powered by <a href="https://threejs.org" target="_blank">Three.js</a>
+    </div>
+  </div>
+</body>
+</html>

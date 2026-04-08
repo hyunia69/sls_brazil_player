@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Avatar Animation Player</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; color: #eee; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+  #canvas { display: block; width: 100vw; height: 100vh; }
+
+  #controls {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 20px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%);
+    z-index: 10;
+  }
+  #controls h1 { font-size: 16px; font-weight: 600; margin-right: 8px; white-space: nowrap; }
+  .model-btn {
+    padding: 6px 16px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+    background: rgba(255,255,255,0.05); color: #ccc; cursor: pointer;
+    font-size: 13px; transition: all 0.2s;
+  }
+  .model-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .model-btn.active { background: #4361ee; border-color: #4361ee; color: #fff; }
+
+  #player-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    padding: 12px 20px 16px;
+    background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+    z-index: 10;
+  }
+  #timeline-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  #timeline {
+    flex: 1; height: 6px; appearance: none; background: rgba(255,255,255,0.15);
+    border-radius: 3px; cursor: pointer; outline: none;
+  }
+  #timeline::-webkit-slider-thumb {
+    appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: #4361ee; cursor: pointer;
+  }
+  #time-display { font-size: 12px; color: #aaa; min-width: 90px; text-align: right; }
+
+  #btn-row { display: flex; align-items: center; gap: 8px; }
+  .play-btn {
+    padding: 6px 14px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+    background: rgba(255,255,255,0.05); color: #ccc; cursor: pointer;
+    font-size: 13px; transition: all 0.2s;
+  }
+  .play-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .play-btn.active { background: #4361ee; border-color: #4361ee; color: #fff; }
+  #speed-label { font-size: 12px; color: #888; margin-left: 12px; }
+  #speed {
+    width: 80px; height: 4px; appearance: none; background: rgba(255,255,255,0.15);
+    border-radius: 2px; cursor: pointer; outline: none;
+  }
+  #speed::-webkit-slider-thumb {
+    appearance: none; width: 10px; height: 10px; border-radius: 50%;
+    background: #aaa; cursor: pointer;
+  }
+  #speed-val { font-size: 12px; color: #aaa; min-width: 30px; }
+
+  #info {
+    position: fixed; top: 60px; left: 16px;
+    padding: 10px 14px; border-radius: 8px;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+    font-size: 12px; line-height: 1.6; z-index: 10;
+  }
+  #info .label { color: #888; }
+  #info .value { color: #eee; font-weight: 500; }
+
+  #loading {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #1a1a2e; z-index: 100; transition: opacity 0.4s;
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+  .spinner {
+    width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: #4361ee; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  #loading span { margin-left: 16px; font-size: 14px; color: #888; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div><span>Loading...</span></div>
+
+<div id="controls">
+  <h1>Animation Player</h1>
+  <button class="model-btn active" data-model="padrao_tex">Padrao</button>
+  <button class="model-btn" data-model="casa_tex">CASA</button>
+  <button class="model-btn" data-model="icaro">Icaro</button>
+</div>
+
+<div id="info">
+  <div><span class="label">Model: </span><span class="value" id="info-model">-</span></div>
+  <div><span class="label">Animation: </span><span class="value" id="info-anim">-</span></div>
+  <div><span class="label">Duration: </span><span class="value" id="info-dur">-</span></div>
+</div>
+
+<div id="player-bar">
+  <div id="timeline-row">
+    <input type="range" id="timeline" min="0" max="1000" value="0" step="1">
+    <span id="time-display">0.000 / 0.000s</span>
+  </div>
+  <div id="btn-row">
+    <button class="play-btn" id="btn-play">Play</button>
+    <button class="play-btn" id="btn-pause">Pause</button>
+    <button class="play-btn" id="btn-stop">Stop</button>
+    <button class="play-btn active" id="btn-loop">Loop</button>
+    <span id="speed-label">Speed:</span>
+    <input type="range" id="speed" min="10" max="300" value="100" step="10">
+    <span id="speed-val">1.0x</span>
+  </div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// --- Config ---
+const MODELS = {
+  padrao_tex: '/avatars/vlibras/padrao/export/padrao_tex.glb',
+  casa_tex:   '/avatars/vlibras/casa/export/casa_tex.glb',
+  icaro:      '/avatars/vlibras/icaro/export/icaro.glb',
+};
+const ANIM_URL = '/animations/vlibras/CASA_threejs.json';
+const EXCLUDE_NAMES = ['Icosphere'];
+
+// --- Scene ---
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
+camera.position.set(0, 1.5, 4);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 1, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.update();
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+dirLight.position.set(3, 5, 3);
+scene.add(dirLight);
+scene.add(new THREE.DirectionalLight(0x8888ff, 0.4).translateX(-3).translateY(2));
+scene.add(new THREE.GridHelper(10, 20, 0x333355, 0x222244));
+
+// --- State ---
+let currentModel = null;
+let animClip = null;      // THREE.AnimationClip from JSON
+let mixer = null;
+let currentAction = null;
+let duration = 0;
+let isPlaying = false;
+let isLooping = true;
+let isSeeking = false;
+const clock = new THREE.Clock();
+const loader = new GLTFLoader();
+
+const loadingEl = document.getElementById('loading');
+const timelineEl = document.getElementById('timeline');
+const timeDisplayEl = document.getElementById('time-display');
+const speedEl = document.getElementById('speed');
+const speedValEl = document.getElementById('speed-val');
+
+// --- Load animation JSON and reconstruct AnimationClip ---
+async function loadAnimation() {
+  const resp = await fetch(ANIM_URL);
+  const data = await resp.json();
+
+  // Reconstruct Three.js KeyframeTrack objects from JSON
+  const tracks = [];
+  for (const t of data.tracks) {
+    const times = new Float32Array(t.times);
+    const values = new Float32Array(t.values);
+
+    let track;
+    if (t.name.endsWith('.quaternion')) {
+      track = new THREE.QuaternionKeyframeTrack(t.name, times, values);
+    } else if (t.name.endsWith('.position') || t.name.endsWith('.scale')) {
+      track = new THREE.VectorKeyframeTrack(t.name, times, values);
+    } else {
+      track = new THREE.NumberKeyframeTrack(t.name, times, values);
+    }
+    tracks.push(track);
+  }
+
+  animClip = new THREE.AnimationClip(data.name, data.duration, tracks);
+  duration = data.duration;
+
+  document.getElementById('info-anim').textContent = `${data.name} (${tracks.length} tracks, from JSON)`;
+  document.getElementById('info-dur').textContent = `${duration.toFixed(3)}s`;
+}
+
+// --- Model ---
+async function loadModel(name) {
+  loadingEl.classList.remove('hidden');
+
+  if (mixer) { mixer.stopAllAction(); mixer = null; }
+  if (currentModel) {
+    scene.remove(currentModel);
+    currentModel.traverse(child => {
+      if (child.isMesh) {
+        child.geometry.dispose();
+        (Array.isArray(child.material) ? child.material : [child.material]).forEach(m => m && m.dispose());
+      }
+    });
+  }
+  currentAction = null;
+  isPlaying = false;
+
+  const gltf = await new Promise((resolve, reject) => {
+    loader.load(MODELS[name], resolve, undefined, reject);
+  });
+  const model = gltf.scene;
+
+  // Remove Icosphere
+  const toRemove = [];
+  model.traverse(child => {
+    if (EXCLUDE_NAMES.some(ex => child.name.includes(ex))) toRemove.push(child);
+  });
+  toRemove.forEach(obj => {
+    if (obj.isMesh) {
+      obj.geometry.dispose();
+      (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach(m => m && m.dispose());
+    }
+    obj.removeFromParent();
+  });
+
+  scene.add(model);
+  currentModel = model;
+
+  // Center
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  model.position.sub(new THREE.Vector3(center.x, box.min.y, center.z));
+  controls.target.set(0, size.y * 0.45, 0);
+  camera.position.set(0, size.y * 0.5, size.y * 1.8);
+  controls.update();
+
+  // Apply animation clip from JSON to this model
+  if (animClip) {
+    mixer = new THREE.AnimationMixer(model);
+    currentAction = mixer.clipAction(animClip);
+    currentAction.setLoop(isLooping ? THREE.LoopRepeat : THREE.LoopOnce);
+    currentAction.clampWhenFinished = true;
+    currentAction.play();
+    currentAction.paused = true;
+    currentAction.time = 0;
+    mixer.update(0);
+  }
+
+  document.getElementById('info-model').textContent = name;
+  document.querySelectorAll('.model-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.model === name);
+  });
+
+  updateTimeline();
+  loadingEl.classList.add('hidden');
+}
+
+// --- UI ---
+function updateTimeline() {
+  if (!isSeeking && duration > 0 && currentAction) {
+    timelineEl.value = (currentAction.time / duration) * 1000;
+    timeDisplayEl.textContent = `${currentAction.time.toFixed(3)} / ${duration.toFixed(3)}s`;
+  }
+}
+
+timelineEl.addEventListener('input', () => {
+  if (!mixer || !currentAction) return;
+  isSeeking = true;
+  const t = (timelineEl.value / 1000) * duration;
+  currentAction.time = t;
+  mixer.update(0);
+  timeDisplayEl.textContent = `${t.toFixed(3)} / ${duration.toFixed(3)}s`;
+});
+timelineEl.addEventListener('change', () => { isSeeking = false; });
+
+speedEl.addEventListener('input', () => {
+  const s = speedEl.value / 100;
+  speedValEl.textContent = `${s.toFixed(1)}x`;
+  if (mixer) mixer.timeScale = s;
+});
+
+document.getElementById('btn-play').addEventListener('click', () => {
+  if (!currentAction) return;
+  if (currentAction.time >= duration) currentAction.time = 0;
+  currentAction.paused = false;
+  isPlaying = true;
+  clock.getDelta();
+});
+document.getElementById('btn-pause').addEventListener('click', () => {
+  if (currentAction) currentAction.paused = true;
+  isPlaying = false;
+});
+document.getElementById('btn-stop').addEventListener('click', () => {
+  if (!currentAction) return;
+  currentAction.paused = true;
+  currentAction.time = 0;
+  mixer.update(0);
+  isPlaying = false;
+  updateTimeline();
+});
+document.getElementById('btn-loop').addEventListener('click', (e) => {
+  isLooping = !isLooping;
+  e.target.classList.toggle('active', isLooping);
+  if (currentAction) currentAction.setLoop(isLooping ? THREE.LoopRepeat : THREE.LoopOnce);
+});
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && currentAction) {
+    e.preventDefault();
+    currentAction.paused = !currentAction.paused;
+    isPlaying = !currentAction.paused;
+    if (isPlaying) clock.getDelta();
+  }
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// --- Render ---
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  if (mixer && isPlaying && !isSeeking) {
+    mixer.update(delta);
+    if (currentAction && !isLooping && currentAction.time >= duration) {
+      isPlaying = false;
+      currentAction.paused = true;
+    }
+    updateTimeline();
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// --- Init ---
+await loadAnimation();
+await loadModel('padrao_tex');
+requestAnimationFrame(animate);
+
+document.querySelectorAll('.model-btn').forEach(btn => {
+  btn.addEventListener('click', () => loadModel(btn.dataset.model));
+});
+</script>
+</body>
+</html>

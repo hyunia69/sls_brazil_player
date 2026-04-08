@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BVH Player</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #1a1a2e; color: #eee; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+
+        #canvas-container { width: 100vw; height: 100vh; }
+
+        #controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.75);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        button {
+            background: #16213e;
+            color: #eee;
+            border: 1px solid #0f3460;
+            border-radius: 4px;
+            padding: 6px 14px;
+            cursor: pointer;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        button:hover { background: #0f3460; }
+        button.active { background: #e94560; border-color: #e94560; }
+        button.toggle-on { background: #0a8; border-color: #0a8; }
+
+        #timeline {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #16213e;
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+        #timeline::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px; height: 14px;
+            background: #e94560;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        #info {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        #speed-display, #frame-display, #time-display {
+            font-size: 13px;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        #drop-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(233, 69, 96, 0.15);
+            border: 3px dashed #e94560;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        #load-prompt {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 18px;
+            color: #888;
+        }
+        #load-prompt span { font-size: 48px; display: block; margin-bottom: 16px; }
+
+        #mode-indicator {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 14px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        #mode-indicator .mode-label { color: #888; }
+        #mode-indicator .mode-value { color: #0f8; font-weight: bold; }
+
+        .separator {
+            width: 1px;
+            height: 24px;
+            background: #0f3460;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="load-prompt">
+        <span>&#x1F9B4;</span>
+        BVH 파일을 드래그하거나<br>
+        <button id="btn-load-file" style="margin-top: 12px; font-size: 16px; padding: 10px 24px;">파일 선택</button>
+        <input type="file" id="file-input" accept=".bvh" style="display: none;">
+    </div>
+
+    <div id="info" style="display: none;">
+        <div>Joints: <strong id="info-joints">-</strong></div>
+        <div>Frames: <strong id="info-frames">-</strong></div>
+        <div>FPS: <strong id="info-fps">-</strong></div>
+        <div>Duration: <strong id="info-duration">-</strong>s</div>
+    </div>
+
+    <div id="mode-indicator" style="display: none;">
+        <span class="mode-label">Mode: </span>
+        <span class="mode-value" id="mode-value">Skeleton</span>
+    </div>
+
+    <div id="controls" style="display: none;">
+        <button id="btn-play" class="active">&#9654;</button>
+        <button id="btn-stop">&#9632;</button>
+        <span id="time-display">0.00s</span>
+        <input type="range" id="timeline" min="0" max="1000" value="0">
+        <span id="frame-display">0/0</span>
+        <button id="btn-slower">-</button>
+        <span id="speed-display">1.0x</span>
+        <button id="btn-faster">+</button>
+        <div class="separator"></div>
+        <button id="btn-toggle-avatar">Avatar</button>
+        <button id="btn-toggle-skeleton">Bones</button>
+        <button id="btn-reset-cam">Cam</button>
+    </div>
+
+    <div id="drop-overlay">BVH 파일을 놓으세요</div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { BVHLoader } from 'three/addons/loaders/BVHLoader.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+        // --- Scene setup ---
+        const container = document.getElementById('canvas-container');
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setClearColor(0x1a1a2e);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        container.appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+
+        // Grid
+        const grid = new THREE.GridHelper(4, 20, 0x0f3460, 0x0f3460);
+        grid.material.opacity = 0.4;
+        grid.material.transparent = true;
+        scene.add(grid);
+
+        // Axes
+        scene.add(new THREE.AxesHelper(0.5));
+
+        // Lights
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        dirLight.position.set(2, 4, 3);
+        scene.add(dirLight);
+        const backLight = new THREE.DirectionalLight(0xffffff, 0.3);
+        backLight.position.set(-2, 3, -3);
+        scene.add(backLight);
+
+        // Camera
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.01, 100);
+        camera.position.set(0, 1.0, 2.5);
+
+        const orbitControls = new OrbitControls(camera, renderer.domElement);
+        orbitControls.target.set(0, 0.8, 0);
+        orbitControls.enableDamping = true;
+        orbitControls.dampingFactor = 0.1;
+        orbitControls.update();
+
+        // --- State ---
+        let mixer = null;
+        let action = null;
+        let skeletonHelper = null;
+        let bvhSkeleton = null;
+        let bvhResult = null;
+        let bvhRootContainer = null;
+        let clock = new THREE.Clock();
+        let isPlaying = true;
+        let playbackSpeed = 1.0;
+        let duration = 0;
+        let totalFrames = 0;
+        let frameTime = 0;
+
+        // Joint spheres
+        let jointSpheres = [];
+        let showSkeleton = true;
+
+        // Avatar state
+        let avatarModel = null;
+        let avatarBoneMap = {};       // name -> glTF bone
+        let avatarRefPose = {};       // name -> { position, quaternion } reference pose
+        let showAvatar = false;
+        let avatarLoaded = false;
+
+        // BVH scale: BVH uses cm, glTF uses meters
+        const BVH_SCALE = 0.01;
+
+        // --- UI elements ---
+        const btnPlay = document.getElementById('btn-play');
+        const btnStop = document.getElementById('btn-stop');
+        const btnSlower = document.getElementById('btn-slower');
+        const btnFaster = document.getElementById('btn-faster');
+        const btnResetCam = document.getElementById('btn-reset-cam');
+        const btnToggleAvatar = document.getElementById('btn-toggle-avatar');
+        const btnToggleSkeleton = document.getElementById('btn-toggle-skeleton');
+        const timeline = document.getElementById('timeline');
+        const timeDisplay = document.getElementById('time-display');
+        const frameDisplay = document.getElementById('frame-display');
+        const speedDisplay = document.getElementById('speed-display');
+        const infoPanel = document.getElementById('info');
+        const controlsPanel = document.getElementById('controls');
+        const loadPrompt = document.getElementById('load-prompt');
+        const dropOverlay = document.getElementById('drop-overlay');
+        const modeIndicator = document.getElementById('mode-indicator');
+        const modeValue = document.getElementById('mode-value');
+
+        // --- Load glTF Avatar ---
+        const AVATAR_PATH = '/avatars/abnt/avatarModel/model_external.gltf';
+
+        function loadAvatar() {
+            const loader = new GLTFLoader();
+            loader.load(AVATAR_PATH, (gltf) => {
+                avatarModel = gltf.scene;
+                avatarModel.visible = false;
+                scene.add(avatarModel);
+
+                // Build bone name map from glTF skeleton
+                avatarBoneMap = {};
+                avatarModel.traverse((node) => {
+                    if (node.isBone || node.type === 'Bone') {
+                        avatarBoneMap[node.name] = node;
+                    }
+                });
+
+                // Enable skinned mesh frustum culling off
+                avatarModel.traverse((node) => {
+                    if (node.isSkinnedMesh) {
+                        node.frustumCulled = false;
+                    }
+                });
+
+                // glTF RootNode has scale [100,100,100], making model in cm.
+                // Scale avatar to meters so it matches our scene.
+                avatarModel.scale.set(0.01, 0.01, 0.01);
+
+                // Store reference pose (the glTF bind pose rotations)
+                avatarRefPose = {};
+                for (const [name, bone] of Object.entries(avatarBoneMap)) {
+                    avatarRefPose[name] = {
+                        position: bone.position.clone(),
+                        quaternion: bone.quaternion.clone(),
+                    };
+                }
+
+                avatarLoaded = true;
+                btnToggleAvatar.style.opacity = '1';
+                console.log(`Avatar loaded: ${Object.keys(avatarBoneMap).length} bones`);
+            },
+            undefined,
+            (err) => {
+                console.warn('Avatar not found at', AVATAR_PATH, '- avatar mode disabled');
+                btnToggleAvatar.style.opacity = '0.3';
+                btnToggleAvatar.title = 'Avatar model not found';
+            });
+        }
+        loadAvatar();
+
+        // (retargeting is handled in applyBVHFrameToAvatar)
+
+        function applyBVHFrameToAvatar() {
+            if (!bvhSkeleton || !avatarLoaded || !showAvatar) return;
+
+            bvhSkeleton.bones.forEach((bvhBone) => {
+                const avatarBone = avatarBoneMap[bvhBone.name];
+                if (!avatarBone) return;
+
+                // Copy rotation from BVH directly.
+                // BVH bones and avatar bones share the same skeleton structure,
+                // so BVH local rotations apply directly.
+                avatarBone.quaternion.copy(bvhBone.quaternion);
+
+                // Root bone (hips): copy position, scale cm -> m
+                // (glTF bone translations are in meters, BVH positions are in cm)
+                if (bvhBone.name === 'hips_JNT') {
+                    avatarBone.position.set(
+                        bvhBone.position.x * BVH_SCALE,
+                        bvhBone.position.y * BVH_SCALE,
+                        bvhBone.position.z * BVH_SCALE
+                    );
+                }
+                // Non-root bones: keep original positions (same as BVH offset * 0.01)
+            });
+        }
+
+        // --- Load BVH ---
+        function loadBVH(text) {
+            // Clean previous BVH
+            if (skeletonHelper) scene.remove(skeletonHelper);
+            if (bvhRootContainer) scene.remove(bvhRootContainer);
+            jointSpheres.forEach(s => scene.remove(s));
+            jointSpheres = [];
+            mixer = null;
+            action = null;
+
+            const loader = new BVHLoader();
+            bvhResult = loader.parse(text);
+            bvhSkeleton = bvhResult.skeleton;
+
+            // Wrap BVH root in a container scaled cm -> m
+            bvhRootContainer = new THREE.Group();
+            bvhRootContainer.scale.set(BVH_SCALE, BVH_SCALE, BVH_SCALE);
+            bvhRootContainer.add(bvhSkeleton.bones[0]);
+            scene.add(bvhRootContainer);
+
+            // Skeleton helper
+            skeletonHelper = new THREE.SkeletonHelper(bvhRootContainer);
+            skeletonHelper.material.linewidth = 2;
+            scene.add(skeletonHelper);
+
+            // Joint spheres (in world space, so size in meters)
+            const sphereGeom = new THREE.SphereGeometry(0.008, 8, 8);
+            const matDefault = new THREE.MeshPhongMaterial({ color: 0x00d2ff, emissive: 0x003344 });
+            const matRoot = new THREE.MeshPhongMaterial({ color: 0xe94560, emissive: 0x440011 });
+            const matHand = new THREE.MeshPhongMaterial({ color: 0xffd700, emissive: 0x443300 });
+            const matEye = new THREE.MeshPhongMaterial({ color: 0x00ff88, emissive: 0x003322 });
+
+            bvhSkeleton.bones.forEach(bone => {
+                let mat = matDefault;
+                const name = bone.name.toLowerCase();
+                if (name.includes('hips')) mat = matRoot;
+                else if (name.includes('hand') || name.includes('thumb') || name.includes('index') || name.includes('middle') || name.includes('ring') || name.includes('pinky')) mat = matHand;
+                else if (name.includes('eye')) mat = matEye;
+
+                const sphere = new THREE.Mesh(sphereGeom, mat);
+                scene.add(sphere);
+                sphere.userData.bone = bone;
+                jointSpheres.push(sphere);
+            });
+
+            // Animation mixer - works in BVH local space (cm), container handles scaling
+            mixer = new THREE.AnimationMixer(bvhSkeleton.bones[0]);
+            action = mixer.clipAction(bvhResult.clip);
+            action.play();
+
+            duration = bvhResult.clip.duration;
+            const framesMatch = text.match(/Frames:\s*(\d+)/);
+            const frameTimeMatch = text.match(/Frame Time:\s*([\d.]+)/);
+            totalFrames = framesMatch ? parseInt(framesMatch[1]) : Math.round(duration * 30);
+            frameTime = frameTimeMatch ? parseFloat(frameTimeMatch[1]) : 1 / 30;
+            const fps = Math.round(1 / frameTime);
+
+            // Update info
+            document.getElementById('info-joints').textContent = bvhSkeleton.bones.length;
+            document.getElementById('info-frames').textContent = totalFrames;
+            document.getElementById('info-fps').textContent = fps;
+            document.getElementById('info-duration').textContent = duration.toFixed(2);
+
+            timeline.max = 1000;
+            timeline.value = 0;
+
+            // Show UI
+            infoPanel.style.display = 'block';
+            controlsPanel.style.display = 'flex';
+            loadPrompt.style.display = 'none';
+            modeIndicator.style.display = 'block';
+
+            // Avatar retargeting is applied per frame in animate()
+
+            // Reset camera
+            resetCamera();
+
+            isPlaying = true;
+            btnPlay.classList.add('active');
+            btnPlay.innerHTML = '&#9654;';
+            clock.start();
+
+            updateViewMode();
+        }
+
+        function resetCamera() {
+            camera.position.set(0, 1.0, 2.5);
+            orbitControls.target.set(0, 0.8, 0);
+            orbitControls.update();
+        }
+
+        // --- View mode ---
+        function updateViewMode() {
+            // Skeleton visual elements
+            if (skeletonHelper) skeletonHelper.visible = showSkeleton;
+            jointSpheres.forEach(s => s.visible = showSkeleton);
+
+            // BVH bone container: keep in scene for animation mixer,
+            // but hide the rendered bones when skeleton mode is off.
+            // We use layers to keep bones updating without rendering.
+            if (bvhRootContainer) {
+                bvhRootContainer.traverse(node => {
+                    node.visible = showSkeleton;
+                });
+            }
+
+            // Avatar visibility
+            if (avatarModel) avatarModel.visible = showAvatar;
+
+            // Update mode indicator
+            const modes = [];
+            if (showSkeleton) modes.push('Skeleton');
+            if (showAvatar) modes.push('Avatar');
+            modeValue.textContent = modes.length ? modes.join(' + ') : 'None';
+
+            // Button states
+            btnToggleSkeleton.classList.toggle('toggle-on', showSkeleton);
+            btnToggleAvatar.classList.toggle('toggle-on', showAvatar);
+        }
+
+        // --- Playback controls ---
+        btnPlay.addEventListener('click', () => {
+            isPlaying = !isPlaying;
+            btnPlay.classList.toggle('active', isPlaying);
+            btnPlay.innerHTML = isPlaying ? '&#9654;' : '&#9208;';
+            if (isPlaying) clock.getDelta();
+        });
+
+        btnStop.addEventListener('click', () => {
+            if (!mixer || !action) return;
+            isPlaying = false;
+            btnPlay.classList.remove('active');
+            btnPlay.innerHTML = '&#9654;';
+            action.time = 0;
+            mixer.update(0);
+            updateUI();
+        });
+
+        btnSlower.addEventListener('click', () => {
+            playbackSpeed = Math.max(0.1, playbackSpeed - 0.1);
+            speedDisplay.textContent = playbackSpeed.toFixed(1) + 'x';
+        });
+
+        btnFaster.addEventListener('click', () => {
+            playbackSpeed = Math.min(5.0, playbackSpeed + 0.1);
+            speedDisplay.textContent = playbackSpeed.toFixed(1) + 'x';
+        });
+
+        btnResetCam.addEventListener('click', resetCamera);
+
+        btnToggleAvatar.addEventListener('click', () => {
+            if (!avatarLoaded) return;
+            showAvatar = !showAvatar;
+            updateViewMode();
+        });
+
+        btnToggleSkeleton.addEventListener('click', () => {
+            showSkeleton = !showSkeleton;
+            updateViewMode();
+        });
+
+        let isScrubbing = false;
+        timeline.addEventListener('input', () => {
+            if (!action || !mixer) return;
+            isScrubbing = true;
+            const t = (parseFloat(timeline.value) / 1000) * duration;
+            action.time = t;
+            mixer.update(0);
+            applyBVHFrameToAvatar();
+            updateUI();
+        });
+        timeline.addEventListener('change', () => { isScrubbing = false; });
+
+        function updateUI() {
+            if (!action) return;
+            const t = action.time;
+            timeDisplay.textContent = t.toFixed(2) + 's';
+            const frame = Math.floor(t / frameTime);
+            frameDisplay.textContent = `${Math.min(frame, totalFrames)}/${totalFrames}`;
+            if (!isScrubbing) {
+                timeline.value = (t / duration) * 1000;
+            }
+        }
+
+        // --- File loading ---
+        document.getElementById('btn-load-file').addEventListener('click', () => {
+            document.getElementById('file-input').click();
+        });
+
+        document.getElementById('file-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => loadBVH(ev.target.result);
+            reader.readAsText(file);
+        });
+
+        // Drag & drop
+        document.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropOverlay.style.display = 'flex';
+        });
+        document.addEventListener('dragleave', (e) => {
+            if (e.relatedTarget === null) dropOverlay.style.display = 'none';
+        });
+        document.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropOverlay.style.display = 'none';
+            const file = e.dataTransfer.files[0];
+            if (file && file.name.endsWith('.bvh')) {
+                const reader = new FileReader();
+                reader.onload = (ev) => loadBVH(ev.target.result);
+                reader.readAsText(file);
+            }
+        });
+
+        // --- Auto-load from URL param ---
+        const params = new URLSearchParams(window.location.search);
+        const bvhUrl = params.get('bvh');
+        if (bvhUrl) {
+            fetch(bvhUrl)
+                .then(r => r.text())
+                .then(text => loadBVH(text))
+                .catch(err => console.error('Failed to load BVH:', err));
+        }
+
+        // --- Render loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (mixer && isPlaying && !isScrubbing) {
+                const delta = clock.getDelta();
+                mixer.update(delta * playbackSpeed);
+                updateUI();
+            }
+
+            // Apply BVH motion to avatar every frame
+            if (showAvatar) applyBVHFrameToAvatar();
+
+            // Update joint sphere world positions (getWorldPosition accounts for parent scale)
+            if (showSkeleton) {
+                jointSpheres.forEach(sphere => {
+                    const bone = sphere.userData.bone;
+                    const pos = new THREE.Vector3();
+                    bone.getWorldPosition(pos);
+                    sphere.position.copy(pos);
+                });
+            }
+
+            orbitControls.update();
+            renderer.render(scene, camera);
+        }
+
+        // --- Resize ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- Keyboard shortcuts ---
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') { e.preventDefault(); btnPlay.click(); }
+            if (e.code === 'ArrowLeft' && action) {
+                action.time = Math.max(0, action.time - frameTime);
+                mixer.update(0);
+                applyBVHFrameToAvatar();
+                updateUI();
+            }
+            if (e.code === 'ArrowRight' && action) {
+                action.time = Math.min(duration, action.time + frameTime);
+                mixer.update(0);
+                applyBVHFrameToAvatar();
+                updateUI();
+            }
+            if (e.code === 'KeyA') btnToggleAvatar.click();
+            if (e.code === 'KeyS') btnToggleSkeleton.click();
+        });
+
+        animate();
+    </script>
+</body>
+</html>
