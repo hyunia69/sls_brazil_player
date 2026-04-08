@@ -5,6 +5,11 @@
 - **배포**: https://sls-brazil-player.vercel.app/
 - **GitHub**: https://github.com/hyunia69/sls_brazil_player
 
+## 프로젝트 현황
+
+**상세 현황 문서**: [`docs-source/claudedocs/project-status.md`](docs-source/claudedocs/project-status.md)
+(완료 작업, 진행 상태, 알려진 이슈, 다음 작업, 세션 시작 가이드 포함)
+
 ## 현재 상태 (2026-04-08)
 
 | 축 | 상태 | 설명 |
