@@ -2,6 +2,9 @@
 
 브라질 수어(Libras) 3D 아바타 플레이어 생태계. **ABNT** (표준 기반)과 **VLibras** (레거시 호환) 두 축으로 구성.
 
+- **배포**: https://sls-brazil-player.vercel.app/
+- **GitHub**: https://github.com/hyunia69/sls_brazil_player
+
 ## 현재 상태 (2026-04-08)
 
 | 축 | 상태 | 설명 |
@@ -15,10 +18,9 @@
 sls_brazil_player/
 ├── public/                           # Vercel 정적 배포 루트
 │   ├── index.html                    # 메인 랜딩 페이지
-│   ├── players/                      # 플레이어 HTML (6개)
+│   ├── players/                      # 플레이어 HTML (5개)
 │   │   ├── bvh/                      # [완료] BVH 전용 플레이어 (ABNT)
 │   │   ├── slmb/                     # [완료] SLMB 파이프라인 검증 (ABNT)
-│   │   ├── vlibras-slmb/            # [진행중] VLibras AssetBundle 재생
 │   │   ├── vlibras/                  # VLibras 레거시 플레이어
 │   │   ├── vlibras-v3/              # VLibras 플레이어 v3
 │   │   └── viewer/                   # 3D 모델 뷰어
@@ -47,7 +49,7 @@ sls_brazil_player/
 - **VLibras 스켈레톤**: 84 본, Bn 접두사 포르투갈어 명명
 - **glTF scale 이슈**: `model_external.gltf`의 RootNode scale=[100,100,100] → Three.js에서 `×0.01` 필수
 - **좌표 변환**: Unity LH → glTF RH: position `[x,y,z]→[x,y,-z]`, quaternion `[x,y,z,w]→[-x,-y,z,w]`
-- **배포**: Vercel 정적 사이트 (`public/` 디렉토리)
+- **배포**: Vercel 정적 사이트 (`public/` 디렉토리), Git push 시 자동 배포
 - **에셋 경로**: 모든 플레이어는 절대 경로 사용 (`/avatars/...`, `/animations/...`)
 
 ## 로컬 실행
@@ -88,4 +90,3 @@ python -m http.server 8080
 1. VLibras 하체 좌표계 보정 (Unity LH ↔ Blender GLB)
 2. 다양한 수어 단어 테스트 (CASA 외 추가 번들)
 3. VLibras→SLMB 변환 파이프라인 완성
-4. Vercel 배포 및 Git 연동
