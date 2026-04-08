@@ -1,7 +1,5 @@
 {
   "outputDirectory": "public",
-  "cleanUrls": true,
-  "trailingSlash": false,
   "headers": [
     {
       "source": "/avatars/(.*)",
