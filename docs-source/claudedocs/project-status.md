@@ -87,20 +87,27 @@
 
 ## 다음 작업 (우선순위 순)
 
-### P1: VLibras 하체 좌표계 보정
+### P1: 문장 번역 → 글로스 번들 → 애니메이션 재생 파이프라인 구축
+- **목표**: 포르투갈어 문장을 수어로 변환하고 플레이어에서 재생하는 end-to-end 파이프라인
+- **파이프라인 흐름**:
+  1. 대표 포르투갈어 문장을 VLibras 번역 API로 수어문(글로스 시퀀스) 요청
+     - API: `traducao2.vlibras.gov.br/translate`
+  2. 수어문에 포함된 각 글로스의 번들 에셋을 VLibras CDN에서 다운로드
+     - CDN: `dicionario2.vlibras.gov.br/bundles`
+  3. 다운로드한 번들을 파싱하여 애니메이션 데이터로 변환
+  4. 변환된 애니메이션을 VLibras 플레이어에 적용하여 재생
+- **검증**: 문장 입력 → 수어 애니메이션 연속 재생이 자연스러운지 확인
+
+### P2: SLMB 아바타에 VLibras 애니메이션 적용
+- **목표**: ABNT 표준 아바타(46조인트)에서 VLibras CASA 애니메이션 재생
+- 스켈레톤 리타겟팅 필요: VLibras 84본 → ABNT 46조인트 매핑 (`tools/vlibras2slmb/data/skeleton_map.py`)
+- 변환 흐름: CASA (VLibras) → vlibras2slmb → .slmb.xz → slmb_converter decode → JSON → SLMB Pipeline Player
+- 좌표계 변환 포함: Unity LH → glTF RH
+
+### P3: VLibras 하체 좌표계 보정
 - `public/players/vlibras/index.html`에서 하체 본의 좌표 변환 로직 수정
 - Unity LH → glTF RH 변환을 하체 관절(hip, leg, foot)에 정확히 적용
 - 검증: CASA 애니메이션 재생 시 하체 동작이 자연스러운지 확인
-
-### P2: VLibras→SLMB 변환 파이프라인 완성
-- `tools/vlibras2slmb/` end-to-end 테스트
-- 변환 흐름: CASA (VLibras AnimationClip) → vlibras2slmb → .slmb.xz → slmb_converter decode → JSON → 플레이어 재생
-- 입력 데이터: `public/animations/vlibras/CASA_full.json` 또는 `CASA_animation.json`
-
-### P3: 다양한 수어 단어 테스트
-- CASA(집) 외 다른 VLibras 번들 다운로드 및 테스트
-- VLibras 사전 CDN: `dicionario2.vlibras.gov.br/bundles`
-- 번역 API: `traducao2.vlibras.gov.br/translate`
 
 ---
 
