@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sentence Player - VLibras</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; color: #eee; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+  #canvas { display: block; width: 100vw; height: 100vh; }
+
+  #controls {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 20px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, transparent 100%);
+    z-index: 10;
+  }
+  #controls h1 { font-size: 16px; font-weight: 600; margin-right: 4px; white-space: nowrap; }
+
+  #sentence-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 8px 14px;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.08);
+    color: #eee;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  #sentence-input::placeholder { color: rgba(255,255,255,0.35); }
+  #sentence-input:focus {
+    border-color: #4361ee;
+    background: rgba(255,255,255,0.12);
+  }
+  #sentence-input.error {
+    border-color: #dc3545;
+    background: rgba(220, 53, 69, 0.15);
+    animation: input-shake 0.4s ease;
+  }
+  @keyframes input-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+  }
+
+  #translate-btn {
+    padding: 8px 18px;
+    border: 1px solid #4361ee;
+    border-radius: 6px;
+    background: #4361ee;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    white-space: nowrap;
+  }
+  #translate-btn:hover { background: #5670f0; }
+  #translate-btn:active { transform: translateY(1px); }
+  #translate-btn:disabled { background: #555; border-color: #555; cursor: not-allowed; }
+
+  .model-selector { display: flex; gap: 6px; }
+  .model-btn {
+    padding: 6px 14px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+    background: rgba(255,255,255,0.05); color: #ccc; cursor: pointer;
+    font-size: 12px; transition: all 0.2s;
+  }
+  .model-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .model-btn.active { background: #4361ee; border-color: #4361ee; color: #fff; }
+
+  #player-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    padding: 12px 20px 16px;
+    background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+    z-index: 10;
+  }
+  #timeline-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  #timeline {
+    flex: 1; height: 6px; appearance: none; background: rgba(255,255,255,0.15);
+    border-radius: 3px; cursor: pointer; outline: none;
+  }
+  #timeline::-webkit-slider-thumb {
+    appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: #4361ee; cursor: pointer;
+  }
+  #time-display { font-size: 12px; color: #aaa; min-width: 90px; text-align: right; }
+
+  #btn-row { display: flex; align-items: center; gap: 8px; }
+  .play-btn {
+    padding: 6px 14px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+    background: rgba(255,255,255,0.05); color: #ccc; cursor: pointer;
+    font-size: 13px; transition: all 0.2s;
+  }
+  .play-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .play-btn.active { background: #4361ee; border-color: #4361ee; color: #fff; }
+  #speed-label { font-size: 12px; color: #888; margin-left: 12px; }
+  #speed {
+    width: 80px; height: 4px; appearance: none; background: rgba(255,255,255,0.15);
+    border-radius: 2px; cursor: pointer; outline: none;
+  }
+  #speed::-webkit-slider-thumb {
+    appearance: none; width: 10px; height: 10px; border-radius: 50%;
+    background: #aaa; cursor: pointer;
+  }
+  #speed-val { font-size: 12px; color: #aaa; min-width: 30px; }
+
+  #info {
+    position: fixed; top: 64px; left: 16px;
+    max-width: 460px;
+    padding: 10px 14px; border-radius: 8px;
+    background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+    font-size: 12px; line-height: 1.8; z-index: 10;
+  }
+  #info > div { margin-bottom: 2px; }
+  #info .label { color: #888; }
+  #info .value { color: #eee; font-weight: 500; }
+
+  .gloss-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.1);
+    margin-right: 4px;
+    margin-bottom: 2px;
+    font-size: 11px;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .gloss-chip.playing { background: #4361ee; color: white; }
+  .gloss-chip.missing { opacity: 0.5; }
+  .gloss-chip.missing::before { content: "⚠️ "; }
+  .gloss-chip.expanded {
+    border: 1px dashed rgba(120, 200, 255, 0.6);
+    background: rgba(120, 200, 255, 0.08);
+  }
+  .gloss-chip .chip-expand {
+    margin-left: 4px;
+    font-size: 10px;
+    opacity: 0.7;
+    font-weight: 400;
+  }
+
+  #error-banner {
+    position: fixed;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    max-width: 600px;
+    padding: 10px 14px 10px 18px;
+    background: rgba(220, 53, 69, 0.96);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    font-size: 13px;
+    z-index: 50;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  #error-banner.show { opacity: 1; pointer-events: auto; }
+  #error-banner .msg { flex: 1; line-height: 1.4; }
+  #error-banner .close-btn {
+    background: rgba(255,255,255,0.15);
+    border: none;
+    color: #fff;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+  #error-banner .close-btn:hover { background: rgba(255,255,255,0.3); }
+
+  #loading {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #1a1a2e; z-index: 100; transition: opacity 0.4s;
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+  .spinner {
+    width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: #4361ee; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  #loading span { margin-left: 16px; font-size: 14px; color: #888; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div><span>Loading...</span></div>
+
+<div id="controls">
+  <h1>Sentence Player</h1>
+  <input type="text" id="sentence-input" placeholder="포르투갈어 문장 입력 (예: Casa bonita)" />
+  <button id="translate-btn">번역 &amp; 재생</button>
+  <div class="model-selector">
+    <button class="model-btn active" data-model="padrao_tex">Padrao</button>
+    <button class="model-btn" data-model="casa_tex">CASA</button>
+    <button class="model-btn" data-model="icaro">Icaro</button>
+  </div>
+</div>
+
+<div id="error-banner" role="alert" aria-live="assertive">
+  <span class="msg"></span>
+  <button type="button" class="close-btn" id="error-close-btn" aria-label="Close">&times;</button>
+</div>
+
+<div id="info">
+  <div><span class="label">Input: </span><span class="value" id="info-input">-</span></div>
+  <div><span class="label">Glosses: </span><span class="value" id="info-glosses">-</span></div>
+  <div><span class="label">Model: </span><span class="value" id="info-model">-</span></div>
+  <div><span class="label">Playing: </span><span class="value" id="info-current">-</span></div>
+  <div><span class="label">Duration: </span><span class="value" id="info-dur">-</span></div>
+</div>
+
+<div id="player-bar">
+  <div id="timeline-row">
+    <input type="range" id="timeline" min="0" max="1000" value="0" step="1">
+    <span id="time-display">0.000 / 0.000s</span>
+  </div>
+  <div id="btn-row">
+    <button class="play-btn" id="btn-play">Play</button>
+    <button class="play-btn" id="btn-pause">Pause</button>
+    <button class="play-btn" id="btn-stop">Stop</button>
+    <button class="play-btn active" id="btn-loop">Loop</button>
+    <span id="speed-label">Speed:</span>
+    <input type="range" id="speed" min="10" max="300" value="100" step="10">
+    <span id="speed-val">1.0x</span>
+  </div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// --- Config ---
+const MODELS = {
+  padrao_tex: '/avatars/vlibras/padrao/export/padrao_tex.glb',
+  casa_tex:   '/avatars/vlibras/casa/export/casa_tex.glb',
+  icaro:      '/avatars/vlibras/icaro/export/icaro.glb',
+};
+const BUNDLE_INDEX_URL = '/animations/vlibras/bundles/index.json';
+const BUNDLE_BASE = '/animations/vlibras/bundles/';
+const TRANSLATE_URL = 'https://traducao2.vlibras.gov.br/translate';
+const EXCLUDE_NAMES = ['Icosphere'];
+
+// --- Scene ---
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
+camera.position.set(0, 1.5, 4);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 1, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.update();
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+dirLight.position.set(3, 5, 3);
+scene.add(dirLight);
+scene.add(new THREE.DirectionalLight(0x8888ff, 0.4).translateX(-3).translateY(2));
+scene.add(new THREE.GridHelper(10, 20, 0x333355, 0x222244));
+
+// --- State ---
+const CROSSFADE_SEC = 0.2;
+
+let currentModel = null;
+let bundleIndex = null;   // {count, glosses: [{raw,key,file,duration}], failures}
+let glossQueue = [];      // [{key, raw, clip, duration}] - successfully loaded clips (source of truth)
+let queueActions = [];    // [{key, raw, clip, duration, action, _fadeStarted}] - active actions bound to current mixer
+let currentIdx = 0;
+let totalDuration = 0;    // sum of clip durations minus crossfade overlap
+let mixer = null;
+let onMixerFinished = null; // handler reference so we can remove it on rebuild
+let isPlaying = false;
+let isLooping = true;
+let isSeeking = false;    // (M4 MVP: timeline is read-only; kept for future seek support)
+const clock = new THREE.Clock();
+const loader = new GLTFLoader();
+
+const loadingEl = document.getElementById('loading');
+const timelineEl = document.getElementById('timeline');
+const timeDisplayEl = document.getElementById('time-display');
+const speedEl = document.getElementById('speed');
+const speedValEl = document.getElementById('speed-val');
+const errorBannerEl = document.getElementById('error-banner');
+const sentenceInputEl = document.getElementById('sentence-input');
+const translateBtnEl = document.getElementById('translate-btn');
+
+// --- ASCII normalization (strip diacritics, uppercase) ---
+function asciiKey(gloss) {
+  return gloss.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+}
+
+// --- Load bundle index (preflight, cache-busted so new glosses appear immediately) ---
+async function loadBundleIndex() {
+  const resp = await fetch(BUNDLE_INDEX_URL, { cache: 'no-store' });
+  if (!resp.ok) throw new Error(`Bundle index load failed: ${resp.status}`);
+  bundleIndex = await resp.json();
+}
+
+// --- Pure function: JSON data -> THREE.AnimationClip ---
+function buildClipFromJson(data) {
+  const tracks = [];
+  for (const t of data.tracks) {
+    const times = new Float32Array(t.times);
+    const values = new Float32Array(t.values);
+
+    let track;
+    if (t.name.endsWith('.quaternion')) {
+      track = new THREE.QuaternionKeyframeTrack(t.name, times, values);
+    } else if (t.name.endsWith('.position') || t.name.endsWith('.scale')) {
+      track = new THREE.VectorKeyframeTrack(t.name, times, values);
+    } else {
+      track = new THREE.NumberKeyframeTrack(t.name, times, values);
+    }
+    tracks.push(track);
+  }
+  return new THREE.AnimationClip(data.name, data.duration, tracks);
+}
+
+// --- Fetch a single bundle-index entry as a clip object ---
+async function fetchClipFromEntry(entry, rawOverride) {
+  try {
+    const resp = await fetch(BUNDLE_BASE + entry.file);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return {
+      key: entry.key,
+      raw: rawOverride != null ? rawOverride : entry.raw,
+      clip: buildClipFromJson(data),
+      duration: data.duration,
+    };
+  } catch (e) {
+    console.error(`Failed to fetch clip for ${entry.key}:`, e);
+    return null;
+  }
+}
+
+// --- Load clips for a single translated gloss token.
+// Returns an array of clip objects (length >= 1 on success, length 0 on miss).
+// Supports fused-token fallback: if the raw token contains '_', attempts to
+// split and look up each sub-token independently. All sub-tokens must resolve
+// for the fallback to succeed; otherwise the whole token is treated as missing.
+async function loadGlossClip(gloss) {
+  // 1) Direct lookup by ASCII-normalized key.
+  const key = asciiKey(gloss);
+  const direct = bundleIndex.glosses.find(g => g.key === key);
+  if (direct) {
+    const c = await fetchClipFromEntry(direct, gloss);
+    return c ? [c] : [];
+  }
+
+  // 2) Fused-token fallback: split on '_' and look up each sub-token.
+  //    (Note: '&' is preserved as an intra-gloss marker and NEVER split.)
+  if (gloss.includes('_')) {
+    const subs = gloss.split('_').map(s => s.trim()).filter(Boolean);
+    if (subs.length >= 2) {
+      const entries = subs.map(s => {
+        const k = asciiKey(s);
+        const e = bundleIndex.glosses.find(g => g.key === k);
+        return { sub: s, entry: e };
+      });
+      // Only fall back when *every* sub-token resolves — partial expansion
+      // would mis-represent the original sentence.
+      if (entries.every(e => e.entry)) {
+        const clips = await Promise.all(
+          entries.map(e => fetchClipFromEntry(e.entry, e.sub))
+        );
+        if (clips.every(c => c !== null)) return clips;
+      }
+    }
+  }
+
+  return [];
+}
+
+// --- VLibras translate API (POST, plain text response) ---
+async function translateSentence(text) {
+  const resp = await fetch(TRANSLATE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!resp.ok) throw new Error(`Translate failed: ${resp.status}`);
+  const raw = (await resp.text()).trim();
+  // split by whitespace only — single-gloss internal '&' markers are preserved
+  return raw ? raw.split(/\s+/).filter(Boolean) : [];
+}
+
+// --- Render gloss chips from structured chipEntries. ---
+// chipEntries: [{raw, missing, expanded: null | string[], queueStart, queueEnd}]
+//   queueStart/queueEnd are inclusive-exclusive indices into queueActions; for
+//   missing chips they are -1/-1.
+function renderGlossChips(chipEntries) {
+  const container = document.getElementById('info-glosses');
+  container.innerHTML = '';
+  if (!chipEntries || chipEntries.length === 0) {
+    container.textContent = '-';
+    return;
+  }
+  chipEntries.forEach((entry, i) => {
+    const chip = document.createElement('span');
+    let cls = 'gloss-chip';
+    if (entry.missing) cls += ' missing';
+    if (entry.expanded) cls += ' expanded';
+    chip.className = cls;
+    chip.textContent = entry.raw;
+    if (entry.expanded) {
+      const expandLabel = document.createElement('span');
+      expandLabel.className = 'chip-expand';
+      expandLabel.textContent = `→${entry.expanded.join('+')}`;
+      chip.appendChild(expandLabel);
+    }
+    chip.dataset.chipIndex = String(i);
+    if (entry.queueStart >= 0) {
+      chip.dataset.queueStart = String(entry.queueStart);
+      chip.dataset.queueEnd = String(entry.queueEnd);
+    }
+    container.appendChild(chip);
+  });
+}
+
+// --- Highlight the chip whose queue range contains the current queueIdx ---
+function highlightPlayingChip(queueIdx) {
+  const chips = document.querySelectorAll('#info-glosses .gloss-chip');
+  chips.forEach(chip => chip.classList.remove('playing'));
+  if (queueIdx < 0) return;
+  for (const chip of chips) {
+    const qs = chip.dataset.queueStart;
+    const qe = chip.dataset.queueEnd;
+    if (qs === undefined || qe === undefined) continue;
+    const start = parseInt(qs, 10);
+    const end = parseInt(qe, 10);
+    if (queueIdx >= start && queueIdx < end) {
+      chip.classList.add('playing');
+      break;
+    }
+  }
+}
+
+// --- Error banner (dismissible + auto-hide after 4s) ---
+const errorMsgEl = errorBannerEl.querySelector('.msg');
+const errorCloseBtnEl = document.getElementById('error-close-btn');
+let errorTimer = null;
+function showError(msg) {
+  console.error('[sentence-player]', msg);
+  errorMsgEl.textContent = msg;
+  errorBannerEl.classList.add('show');
+  if (errorTimer) clearTimeout(errorTimer);
+  errorTimer = setTimeout(hideError, 4000);
+}
+function hideError() {
+  errorBannerEl.classList.remove('show');
+  if (errorTimer) { clearTimeout(errorTimer); errorTimer = null; }
+}
+errorCloseBtnEl.addEventListener('click', hideError);
+
+// --- Classify caught exceptions into user-friendly messages ---
+function classifyError(err) {
+  const msg = (err && err.message) ? err.message : String(err);
+  // TypeError: Failed to fetch / NetworkError when attempting to fetch resource
+  if (err instanceof TypeError && /fetch|network/i.test(msg)) {
+    return '번역 서버에 연결할 수 없습니다. 잠시 후 다시 시도하세요.';
+  }
+  if (/Translate failed/i.test(msg)) {
+    return `번역 서버 오류: ${msg}`;
+  }
+  if (/Bundle index load failed/i.test(msg)) {
+    return '애니메이션 사전을 불러오지 못했습니다.';
+  }
+  return msg;
+}
+
+// --- Flash the input field with a red border briefly ---
+function flashInputError() {
+  sentenceInputEl.classList.add('error');
+  setTimeout(() => sentenceInputEl.classList.remove('error'), 900);
+}
+
+// --- Compute total wall-clock duration for the queue (overlap-adjusted) ---
+function computeTotalDuration(entries) {
+  if (!entries || entries.length === 0) return 0;
+  const sum = entries.reduce((s, e) => s + e.duration, 0);
+  return Math.max(0, sum - CROSSFADE_SEC * (entries.length - 1));
+}
+
+// --- Fully dispose the current mixer + queueActions (safe to call anytime) ---
+function stopAndDisposeQueue() {
+  if (mixer) {
+    mixer.stopAllAction();
+    if (onMixerFinished) {
+      mixer.removeEventListener('finished', onMixerFinished);
+      onMixerFinished = null;
+    }
+    if (currentModel) {
+      try { mixer.uncacheRoot(currentModel); } catch (_) { /* noop */ }
+    }
+    for (const q of queueActions) {
+      if (q.clip) { try { mixer.uncacheClip(q.clip); } catch (_) { /* noop */ } }
+    }
+    mixer = null;
+  }
+  queueActions = [];
+  currentIdx = 0;
+  totalDuration = 0;
+  isPlaying = false;
+}
+
+// --- Bind glossQueue clips as actions on a fresh mixer for the current model ---
+function rebuildActionsForCurrentModel() {
+  if (!currentModel || glossQueue.length === 0) return;
+
+  stopAndDisposeQueue();
+  mixer = new THREE.AnimationMixer(currentModel);
+  // Preserve current speed slider value across rebuilds
+  mixer.timeScale = speedEl.value / 100;
+
+  queueActions = glossQueue.map((entry) => {
+    const action = mixer.clipAction(entry.clip);
+    action.setLoop(THREE.LoopOnce);
+    action.clampWhenFinished = true;
+    action.enabled = true;
+    return { ...entry, action, _fadeStarted: false };
+  });
+  totalDuration = computeTotalDuration(queueActions);
+
+  onMixerFinished = (e) => {
+    // Identify which queue slot finished
+    const finishedIdx = queueActions.findIndex(q => q.action === e.action);
+    if (finishedIdx < 0) return;
+
+    // Only react when the *currently tracked* clip (or the active one during crossfade) ends
+    if (finishedIdx < currentIdx) return; // stale finish from already-faded-out clip
+
+    if (currentIdx + 1 < queueActions.length) {
+      // Advance logical index. The next action was already started by the crossfade branch.
+      currentIdx += 1;
+      const nxt = queueActions[currentIdx];
+      document.getElementById('info-current').textContent =
+        `${nxt.raw} (${currentIdx + 1}/${queueActions.length})`;
+      highlightPlayingChip(currentIdx);
+    } else {
+      // Last clip finished
+      if (isLooping) {
+        // Restart whole queue from scratch
+        restartQueueFromStart();
+      } else {
+        isPlaying = false;
+        document.getElementById('info-current').textContent = '(finished)';
+        highlightPlayingChip(-1);
+      }
+    }
+  };
+  mixer.addEventListener('finished', onMixerFinished);
+}
+
+// --- Restart queue from idx 0 without rebuilding clips ---
+function restartQueueFromStart() {
+  if (!mixer || queueActions.length === 0) return;
+  for (const q of queueActions) {
+    q.action.stop();
+    q.action.reset();
+    q.action.enabled = true;
+    q.action.setEffectiveWeight(1);
+    q._fadeStarted = false;
+  }
+  currentIdx = 0;
+  const first = queueActions[0];
+  first.action.play();
+  mixer.update(0);
+  isPlaying = true;
+  clock.getDelta();
+
+  document.getElementById('info-current').textContent =
+    `${first.raw} (1/${queueActions.length})`;
+  document.getElementById('info-dur').textContent = `${totalDuration.toFixed(3)}s`;
+  highlightPlayingChip(0);
+  updateTimeline();
+}
+
+// --- Main entry: build queue actions on current model and start playback ---
+function playQueue() {
+  if (!currentModel || glossQueue.length === 0) return;
+  rebuildActionsForCurrentModel();
+  if (queueActions.length === 0) return;
+  restartQueueFromStart();
+}
+
+// --- Model load ---
+async function loadModel(name) {
+  loadingEl.classList.remove('hidden');
+
+  stopAndDisposeQueue();
+  if (currentModel) {
+    scene.remove(currentModel);
+    currentModel.traverse(child => {
+      if (child.isMesh) {
+        child.geometry.dispose();
+        (Array.isArray(child.material) ? child.material : [child.material]).forEach(m => m && m.dispose());
+      }
+    });
+  }
+
+  const gltf = await new Promise((resolve, reject) => {
+    loader.load(MODELS[name], resolve, undefined, reject);
+  });
+  const model = gltf.scene;
+
+  // Remove Icosphere
+  const toRemove = [];
+  model.traverse(child => {
+    if (EXCLUDE_NAMES.some(ex => child.name.includes(ex))) toRemove.push(child);
+  });
+  toRemove.forEach(obj => {
+    if (obj.isMesh) {
+      obj.geometry.dispose();
+      (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach(m => m && m.dispose());
+    }
+    obj.removeFromParent();
+  });
+
+  scene.add(model);
+  currentModel = model;
+
+  // Center
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  model.position.sub(new THREE.Vector3(center.x, box.min.y, center.z));
+  controls.target.set(0, size.y * 0.45, 0);
+  camera.position.set(0, size.y * 0.5, size.y * 1.8);
+  controls.update();
+
+  document.getElementById('info-model').textContent = name;
+  document.querySelectorAll('.model-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.model === name);
+  });
+
+  // If a queue was already loaded, rebuild its actions against the new model.
+  if (glossQueue.length > 0) {
+    playQueue();
+  } else {
+    document.getElementById('info-current').textContent = '-';
+    document.getElementById('info-dur').textContent = '-';
+    updateTimeline();
+  }
+
+  loadingEl.classList.add('hidden');
+}
+
+// --- UI ---
+// M4 MVP: timeline shows global queue progress, read-only (seek = M5 scope).
+timelineEl.disabled = true;
+timelineEl.title = 'Seek disabled in M4 (queue mode)';
+
+function updateTimeline() {
+  if (queueActions.length === 0 || totalDuration <= 0) {
+    timelineEl.value = 0;
+    timeDisplayEl.textContent = `0.000 / 0.000s`;
+    return;
+  }
+  const curr = queueActions[currentIdx];
+  if (!curr) return;
+
+  // Elapsed = sum of finished clip durations - overlap + current clip time
+  let elapsed = 0;
+  for (let i = 0; i < currentIdx; i++) elapsed += queueActions[i].duration;
+  elapsed -= CROSSFADE_SEC * currentIdx;
+  elapsed += curr.action.time;
+  if (elapsed < 0) elapsed = 0;
+  if (elapsed > totalDuration) elapsed = totalDuration;
+
+  timelineEl.value = (elapsed / totalDuration) * 1000;
+  timeDisplayEl.textContent = `${elapsed.toFixed(3)} / ${totalDuration.toFixed(3)}s`;
+}
+
+speedEl.addEventListener('input', () => {
+  const s = speedEl.value / 100;
+  speedValEl.textContent = `${s.toFixed(1)}x`;
+  if (mixer) mixer.timeScale = s;
+});
+
+function setQueuePaused(paused) {
+  if (queueActions.length === 0) return;
+  // Pause both current and next (covers mid-crossfade state)
+  const touched = new Set();
+  const curr = queueActions[currentIdx];
+  if (curr) { curr.action.paused = paused; touched.add(curr.action); }
+  const nxt = queueActions[currentIdx + 1];
+  if (nxt && curr && curr._fadeStarted) { nxt.action.paused = paused; touched.add(nxt.action); }
+  isPlaying = !paused;
+  if (!paused) clock.getDelta();
+}
+
+document.getElementById('btn-play').addEventListener('click', () => {
+  if (queueActions.length === 0) return;
+  // If queue was stopped (not playing, idx=0, time~0) or reached end, restart cleanly
+  const last = queueActions[queueActions.length - 1];
+  const atEnd = last && currentIdx === queueActions.length - 1 &&
+                last.action.time >= last.duration - 1e-4;
+  if (!isPlaying && (atEnd || currentIdx === 0 &&
+      queueActions[0].action.time < 1e-4 &&
+      !queueActions[0].action.isRunning())) {
+    restartQueueFromStart();
+    return;
+  }
+  setQueuePaused(false);
+});
+document.getElementById('btn-pause').addEventListener('click', () => {
+  setQueuePaused(true);
+});
+document.getElementById('btn-stop').addEventListener('click', () => {
+  if (queueActions.length === 0) return;
+  for (const q of queueActions) {
+    q.action.stop();
+    q.action.reset();
+    q.action.enabled = true;
+    q.action.setEffectiveWeight(1);
+    q._fadeStarted = false;
+  }
+  currentIdx = 0;
+  isPlaying = false;
+  mixer.update(0);
+  const first = queueActions[0];
+  document.getElementById('info-current').textContent = `${first.raw} (1/${queueActions.length})`;
+  highlightPlayingChip(-1);
+  updateTimeline();
+});
+document.getElementById('btn-loop').addEventListener('click', (e) => {
+  isLooping = !isLooping;
+  e.target.classList.toggle('active', isLooping);
+  // Individual actions remain LoopOnce; the 'finished' handler decides to restart the queue.
+});
+document.addEventListener('keydown', (e) => {
+  const tag = (e.target && e.target.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  if (e.code === 'Space' && queueActions.length > 0) {
+    e.preventDefault();
+    setQueuePaused(isPlaying);
+  }
+});
+
+// --- Translate button + Enter-key handler ---
+async function handleTranslate() {
+  const text = sentenceInputEl.value.trim();
+  if (!text) {
+    flashInputError();
+    return;
+  }
+  hideError();
+  document.getElementById('info-input').textContent = text;
+  translateBtnEl.disabled = true;
+  translateBtnEl.textContent = '번역 중...';
+  try {
+    const glosses = await translateSentence(text);
+    if (glosses.length === 0) {
+      stopAndDisposeQueue();
+      glossQueue = [];
+      renderGlossChips([]);
+      document.getElementById('info-current').textContent = '-';
+      document.getElementById('info-dur').textContent = '-';
+      updateTimeline();
+      showError('번역 결과 없음');
+      return;
+    }
+    // Load clips per raw gloss in parallel. Each entry is an array:
+    //   length 0 -> missing
+    //   length 1 -> direct hit
+    //   length >= 2 -> fused-token fallback expansion (e.g. BOM_DIA -> [BOM, DIA])
+    const perGlossClips = await Promise.all(glosses.map(loadGlossClip));
+
+    // Build the flat queue plus matching chipEntries that remember which
+    // queue indices belong to each raw token (used by chip highlighting).
+    const queue = [];
+    const chipEntries = [];
+    for (let i = 0; i < glosses.length; i++) {
+      const g = glosses[i];
+      const clips = perGlossClips[i];
+      if (!clips || clips.length === 0) {
+        chipEntries.push({ raw: g, missing: true, expanded: null, queueStart: -1, queueEnd: -1 });
+      } else if (clips.length === 1) {
+        const start = queue.length;
+        queue.push(clips[0]);
+        chipEntries.push({ raw: g, missing: false, expanded: null, queueStart: start, queueEnd: start + 1 });
+      } else {
+        const start = queue.length;
+        queue.push(...clips);
+        chipEntries.push({
+          raw: g,
+          missing: false,
+          expanded: clips.map(c => c.raw),
+          queueStart: start,
+          queueEnd: start + clips.length,
+        });
+      }
+    }
+    renderGlossChips(chipEntries);
+
+    // Tear down the previous queue/mixer before swapping in the new source-of-truth.
+    stopAndDisposeQueue();
+    glossQueue = queue;
+
+    if (glossQueue.length === 0) {
+      document.getElementById('info-current').textContent = '-';
+      document.getElementById('info-dur').textContent = '-';
+      updateTimeline();
+      showError('재생 가능한 글로스가 없습니다');
+      return;
+    }
+    // M4/M5: play the full queue with crossfade transitions.
+    playQueue();
+  } catch (e) {
+    document.getElementById('info-current').textContent = '-';
+    showError(classifyError(e));
+  } finally {
+    translateBtnEl.disabled = false;
+    translateBtnEl.textContent = '번역 & 재생';
+  }
+}
+
+translateBtnEl.addEventListener('click', handleTranslate);
+sentenceInputEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    handleTranslate();
+  }
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// --- Render ---
+function animate() {
+  requestAnimationFrame(animate);
+  const delta = clock.getDelta();
+  if (mixer && isPlaying) {
+    mixer.update(delta);
+
+    // Queue crossfade scheduling: when current clip enters its trailing window,
+    // start the next action and crossfade into it.
+    if (queueActions.length > 0 && currentIdx < queueActions.length) {
+      const curr = queueActions[currentIdx];
+      if (curr && !curr._fadeStarted && currentIdx + 1 < queueActions.length) {
+        const timeLeft = curr.duration - curr.action.time;
+        if (timeLeft <= CROSSFADE_SEC) {
+          const next = queueActions[currentIdx + 1];
+          next.action.reset();
+          next.action.enabled = true;
+          next.action.setEffectiveWeight(1);
+          next.action.play();
+          curr.action.crossFadeTo(next.action, CROSSFADE_SEC, false);
+          curr._fadeStarted = true;
+        }
+      }
+    }
+    updateTimeline();
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// --- Init ---
+await loadBundleIndex();
+await loadModel('padrao_tex');
+requestAnimationFrame(animate);
+
+document.querySelectorAll('.model-btn').forEach(btn => {
+  btn.addEventListener('click', () => loadModel(btn.dataset.model));
+});
+</script>
+</body>
+</html>
