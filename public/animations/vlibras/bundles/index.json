@@ -1,5 +1,5 @@
 {
-  "count": 21,
+  "count": 27,
   "glosses": [
     {
       "raw": "CASA",
@@ -125,6 +125,42 @@
       "raw": "FAMÍLIA",
       "key": "FAMILIA",
       "file": "FAMILIA.threejs.json",
+      "duration": 2.3
+    },
+    {
+      "raw": "MORAR",
+      "key": "MORAR",
+      "file": "MORAR.threejs.json",
+      "duration": 2.4667
+    },
+    {
+      "raw": "QUERER",
+      "key": "QUERER",
+      "file": "QUERER.threejs.json",
+      "duration": 2.4667
+    },
+    {
+      "raw": "ESTUDAR",
+      "key": "ESTUDAR",
+      "file": "ESTUDAR.threejs.json",
+      "duration": 1.5667
+    },
+    {
+      "raw": "IR",
+      "key": "IR",
+      "file": "IR.threejs.json",
+      "duration": 1.9667
+    },
+    {
+      "raw": "TER",
+      "key": "TER",
+      "file": "TER.threejs.json",
+      "duration": 2.4667
+    },
+    {
+      "raw": "FALAR",
+      "key": "FALAR",
+      "file": "FALAR.threejs.json",
       "duration": 2.3
     }
   ],
