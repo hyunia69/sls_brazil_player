@@ -1,0 +1,25 @@
+# VLibras spike vocabulary for M1 precompute pipeline.
+# One gloss per line. Lines starting with '#' and blank lines are ignored.
+# These are common Brazilian Portuguese words expected to exist in the
+# VLibras dictionary. Case matters: VLibras uses upper-case gloss IDs.
+CASA
+ESCOLA
+ÁGUA
+OLÁ
+EU
+VOCÊ
+OBRIGADO
+BOM
+DIA
+SIM
+NÃO
+POR_FAVOR
+AMIGO
+AMIGA
+TRABALHO
+COMER
+BEBER
+NOME
+GOSTAR
+MUITO
+FAMÍLIA

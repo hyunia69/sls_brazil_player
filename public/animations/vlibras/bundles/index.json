@@ -1,0 +1,132 @@
+{
+  "count": 21,
+  "glosses": [
+    {
+      "raw": "CASA",
+      "key": "CASA",
+      "file": "CASA.threejs.json",
+      "duration": 2.4667
+    },
+    {
+      "raw": "ESCOLA",
+      "key": "ESCOLA",
+      "file": "ESCOLA.threejs.json",
+      "duration": 3.5333
+    },
+    {
+      "raw": "ÁGUA",
+      "key": "AGUA",
+      "file": "AGUA.threejs.json",
+      "duration": 3.8
+    },
+    {
+      "raw": "OLÁ",
+      "key": "OLA",
+      "file": "OLA.threejs.json",
+      "duration": 2.5667
+    },
+    {
+      "raw": "EU",
+      "key": "EU",
+      "file": "EU.threejs.json",
+      "duration": 1.9333
+    },
+    {
+      "raw": "VOCÊ",
+      "key": "VOCE",
+      "file": "VOCE.threejs.json",
+      "duration": 2.0333
+    },
+    {
+      "raw": "OBRIGADO",
+      "key": "OBRIGADO",
+      "file": "OBRIGADO.threejs.json",
+      "duration": 2.1333
+    },
+    {
+      "raw": "BOM",
+      "key": "BOM",
+      "file": "BOM.threejs.json",
+      "duration": 1.8
+    },
+    {
+      "raw": "DIA",
+      "key": "DIA",
+      "file": "DIA.threejs.json",
+      "duration": 2.3
+    },
+    {
+      "raw": "SIM",
+      "key": "SIM",
+      "file": "SIM.threejs.json",
+      "duration": 3.4
+    },
+    {
+      "raw": "NÃO",
+      "key": "NAO",
+      "file": "NAO.threejs.json",
+      "duration": 2.7667
+    },
+    {
+      "raw": "POR_FAVOR",
+      "key": "POR_FAVOR",
+      "file": "POR_FAVOR.threejs.json",
+      "duration": 2.8333
+    },
+    {
+      "raw": "AMIGO",
+      "key": "AMIGO",
+      "file": "AMIGO.threejs.json",
+      "duration": 1.9667
+    },
+    {
+      "raw": "AMIGA",
+      "key": "AMIGA",
+      "file": "AMIGA.threejs.json",
+      "duration": 4.0667
+    },
+    {
+      "raw": "TRABALHO",
+      "key": "TRABALHO",
+      "file": "TRABALHO.threejs.json",
+      "duration": 3.9667
+    },
+    {
+      "raw": "COMER",
+      "key": "COMER",
+      "file": "COMER.threejs.json",
+      "duration": 2.0
+    },
+    {
+      "raw": "BEBER",
+      "key": "BEBER",
+      "file": "BEBER.threejs.json",
+      "duration": 2.2333
+    },
+    {
+      "raw": "NOME",
+      "key": "NOME",
+      "file": "NOME.threejs.json",
+      "duration": 2.3
+    },
+    {
+      "raw": "GOSTAR",
+      "key": "GOSTAR",
+      "file": "GOSTAR.threejs.json",
+      "duration": 3.0333
+    },
+    {
+      "raw": "MUITO",
+      "key": "MUITO",
+      "file": "MUITO.threejs.json",
+      "duration": 2.8
+    },
+    {
+      "raw": "FAMÍLIA",
+      "key": "FAMILIA",
+      "file": "FAMILIA.threejs.json",
+      "duration": 2.3
+    }
+  ],
+  "failures": []
+}
