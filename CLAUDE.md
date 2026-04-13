@@ -8,14 +8,15 @@
 ## 프로젝트 현황
 
 **상세 현황 문서**: [`docs-source/claudedocs/project-status.md`](docs-source/claudedocs/project-status.md)
-(완료 작업, 진행 상태, 알려진 이슈, 다음 작업, 세션 시작 가이드 포함)
+(현재 상태, 다음 작업, 주간보고, 작업 이력, 알려진 이슈 통합 관리)
 
-## 현재 상태 (2026-04-08)
+## 현재 상태 (2026-04-13)
 
 | 축 | 상태 | 설명 |
 |---|---|---|
 | **ABNT** | ✅ 완료 | SLMB 인코딩/디코딩/재생 파이프라인 전체 검증 완료 |
-| **VLibras** | 🔄 진행중 | 스켈레톤+상체 재생 성공, 하체 좌표계 보정 미완 |
+| **VLibras (레거시 플레이어)** | 🔄 진행중 | 스켈레톤+상체 재생 성공, 하체 좌표계 보정 미완 |
+| **VLibras (Sentence Player, P1)** | ✅ 완료 | 문장 → 번역 API → 글로스 번들 → 큐잉 + crossfade 재생 end-to-end 작동 |
 
 ## 디렉토리 구조
 
@@ -23,22 +24,23 @@
 sls_brazil_player/
 ├── public/                           # Vercel 정적 배포 루트
 │   ├── index.html                    # 메인 랜딩 페이지
-│   ├── players/                      # 플레이어 HTML (5개)
+│   ├── players/                      # 플레이어 HTML (6개)
 │   │   ├── bvh/                      # [완료] BVH 전용 플레이어 (ABNT)
 │   │   ├── slmb/                     # [완료] SLMB 파이프라인 검증 (ABNT)
 │   │   ├── vlibras/                  # VLibras 레거시 플레이어
-│   │   ├── vlibras-v3/              # VLibras 플레이어 v3
+│   │   ├── vlibras-v3/              # VLibras 단일 글로스 검증 (Three.js tracks)
+│   │   ├── sentence/                 # [완료] Sentence Player (P1) - 문장 → 번역 → 큐잉 재생
 │   │   └── viewer/                   # 3D 모델 뷰어
 │   ├── avatars/                      # 공유 아바타 모델
 │   │   ├── abnt/                     # ABNT 46조인트 (avatarModel, pcmodel)
 │   │   └── vlibras/                  # VLibras 84본 (casa, icaro, padrao, Guga, Hozana)
 │   ├── animations/                   # 공유 애니메이션 데이터
 │   │   ├── abnt/                     # BVH, SLMB, roundtrip 파일
-│   │   └── vlibras/                  # CASA 글로스 데이터
+│   │   └── vlibras/                  # CASA + bundles/*.threejs.json (사전 변환 글로스)
 │   └── docs/                         # 배포 문서 페이지
 ├── tools/                            # Python 변환 도구 (미배포)
 │   ├── slmb_converter/               # SLMB 인코더/디코더
-│   └── vlibras2slmb/                 # VLibras→SLMB 변환기
+│   └── vlibras2slmb/                 # VLibras→SLMB 변환기 + batch/precompute_threejs.py
 ├── blender/                          # Blender 소스 파일 (Git LFS)
 ├── docs-source/                      # 문서 소스 (markdown + PDF)
 │   ├── claudedocs/                   # 구현 분석 문서
@@ -86,12 +88,16 @@ python -m http.server 8080
 
 ## VLibras 참조 정보
 
-- **번역 API**: `traducao2.vlibras.gov.br/translate`
-- **사전 CDN**: `dicionario2.vlibras.gov.br/bundles`
-- **아바타**: Icaro, Guga, Hosana (T-pose, 84본)
+- **번역 API**: `POST https://traducao2.vlibras.gov.br/translate`, JSON body `{"text":"..."}`, plain text 응답 (CORS 직접 허용). 상세: `docs-source/claudedocs/vlibras-translation-api.md`
+- **사전 CDN**: `https://dicionario2.vlibras.gov.br/2018.3.1/WEBGL/<GLOSS>` (Unity AssetBundle, UnityPy 파싱 필요)
+- **아바타 (사용 가능)**: Padrao, CASA, Icaro (90본 공통 스켈레톤)
+- **아바타 (사용 금지)**: Guga(244본), Hozana(136본) — 스켈레톤 불일치
+- **사전 변환 도구**: `tools/vlibras2slmb/batch/precompute_threejs.py` (Icaro bind pose 기반 레거시 변환 적용)
 
 ## 다음 작업
 
-1. VLibras 하체 좌표계 보정 (Unity LH ↔ Blender GLB)
-2. 다양한 수어 단어 테스트 (CASA 외 추가 번들)
-3. VLibras→SLMB 변환 파이프라인 완성
+1. Sentence Player 어휘 확장 (현재 12~20 → 100 글로스 수준)
+2. VLibras 하체 좌표계 보정 (레거시 vlibras/vlibras-v3 플레이어)
+3. `tools/vlibras2slmb/parsing/asset_bundle.py` UnityPy 1.25+ 마이그레이션
+4. VLibras→SLMB 변환 파이프라인 완성 (P2)
+5. Sentence Player 타임라인 seek 활성화 (P4)

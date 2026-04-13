@@ -1,8 +1,4 @@
-# 프로젝트 현황 (2026-04-08)
-
-다음 세션에서 참조할 수 있는 프로젝트 전체 현황 문서.
-
-## 프로젝트 개요
+# 프로젝트 현황
 
 브라질 수어(Libras) 3D 아바타 플레이어 생태계. ABNT NBR 25606 표준과 VLibras 레거시 포맷을 지원하는 웹 기반 플레이어.
 
@@ -10,46 +6,6 @@
 - **GitHub**: https://github.com/hyunia69/sls_brazil_player
 - **기술 스택**: Three.js v0.170.0 (CDN), 단일 HTML, Python 변환 도구
 - **배포 방식**: Vercel 정적 사이트, Git push 시 자동 배포
-
----
-
-## 완료된 작업
-
-### 1. ABNT 표준 분석 (완료)
-- ABNT NBR 25606 전체 분석 (46조인트 스켈레톤, 268 블렌드셰이프, 양자화 공식)
-- SBTVD OG-06 운영 가이드라인 분석
-- Annex A~D 전송 방식 분석
-- 분석 문서: `docs-source/standards/` 디렉토리
-
-### 2. SLMB 인코더/디코더 (완료)
-- BVH → SLMB → BVH/glTF/JSON roundtrip 검증 완료
-- Type-2/3 Qr 역변환 버그 수정 완료
-- 코드: `tools/slmb_converter/`
-
-### 3. ABNT 플레이어 (완료)
-- **BVH Player** (`public/players/bvh/`): BVH 파일 직접 파싱 및 재생
-- **SLMB Pipeline Player** (`public/players/slmb/`): JSON/BVH/glTF 3소스 동시 재생 비교
-- ABNT 46조인트 avatarModel 로딩, scale 0.01 적용, 본 매핑 정상
-
-### 4. VLibras 플레이어 (부분 완료)
-- **VLibras Player** (`public/players/vlibras/`): Padrao/CASA/Icaro 모델 선택, CASA 애니메이션 재생
-- **VLibras Player v3** (`public/players/vlibras-v3/`): Three.js 포맷 애니메이션
-- **Model Viewer** (`public/players/viewer/`): 5개 모델 인터랙티브 뷰어
-- 상체 재생 성공, **하체 좌표계 보정 미완**
-
-### 5. VLibras→SLMB 변환기 (진행중)
-- 스켈레톤 매핑 완료 (84본 VLibras → 46조인트 ABNT)
-- 블렌드셰이프 매핑 정의
-- 코드: `tools/vlibras2slmb/`
-- **전체 파이프라인 미완성**
-
-### 6. 프로젝트 통합 (2026-04-08 완료)
-- `slmb/`, `vlibras/` 두 개 독립 프로젝트를 단일 구조로 통합
-- 아바타 모델 공유 폴더 (`public/avatars/`) 구성
-- 애니메이션 데이터 공유 폴더 (`public/animations/`) 구성
-- 메인 랜딩 페이지 생성 (5개 플레이어 + 문서 링크)
-- Git 저장소 생성, Vercel 배포 완료
-- 원본 `slmb/`, `vlibras/` 디렉토리 삭제 (마이그레이션 검증 후)
 
 ---
 
@@ -62,6 +18,8 @@
 | SLMB Pipeline Player (ABNT) | ✅ 완료 | `public/players/slmb/` |
 | VLibras Player | 🔄 상체 완료, 하체 미완 | `public/players/vlibras/` |
 | VLibras Player v3 | 🔄 상체 완료, 하체 미완 | `public/players/vlibras-v3/` |
+| **Sentence Player (P1)** | ✅ 완료 | `public/players/sentence/` |
+| **Bundle 사전 변환기** | ✅ 완료 (21 글로스) | `tools/vlibras2slmb/batch/precompute_threejs.py` |
 | Model Viewer | ✅ 완료 | `public/players/viewer/` |
 | VLibras→SLMB 변환기 | 🔄 매핑 완료, 파이프라인 미완 | `tools/vlibras2slmb/` |
 | 랜딩 페이지 | ✅ 완료 | `public/index.html` |
@@ -70,59 +28,116 @@
 
 ---
 
+## 다음 세션 작업
+
+### P1: 어휘 확장 (완료된 파이프라인 위에)
+- 현재 스파이크 세트 21개 → 자주 쓰이는 명사·동사·대명사 100개 수준으로 확장
+- `tools/vlibras2slmb/data/spike_glosses.txt` 편집 + `precompute_threejs.py` 재실행
+- 확장 후 대표 문장 10개로 회귀 테스트
+- `precompute_threejs.py`에 `sys.stdout.reconfigure(encoding='utf-8')` 추가 (Windows cp949 대응)
+
+### P2: SLMB 아바타에 VLibras 애니메이션 적용
+- VLibras 84본 → ABNT 46조인트 리타겟팅
+- 변환 흐름: CASA (VLibras) → vlibras2slmb → .slmb.xz → decode → JSON → SLMB Pipeline Player
+- 선행 차단: `tools/vlibras2slmb/parsing/asset_bundle.py`가 UnityPy ≥ 1.25에서 깨짐 (lowercase API drift). `precompute_threejs.py`의 인라인 리더를 정규화해 공용 모듈로 올릴 필요
+
+### P3: VLibras 하체 좌표계 보정
+- Unity LH → glTF RH 변환을 하체 관절(hip, leg, foot)에 정확히 적용
+- 대상: `public/players/vlibras/`, `public/players/vlibras-v3/` (Sentence Player는 사전 변환으로 이미 해결됨)
+
+### P4: Sentence Player 타임라인 seek 활성화
+- M4 MVP에서 timeline slider 비활성화됨
+- 글로벌 시간 → 로컬 클립 시간 역산 + 이전 클립 stop/uncache 로직 구현 필요
+
+---
+
+## 주간보고
+
+### 2026-04-13 (월)
+- [완료] **P1 end-to-end 파이프라인 구축 완료** (M0~M5)
+  - VLibras 번역 API 스펙 실측 확정 (POST JSON, plain text 응답, CORS 직접 허용)
+  - Unity AssetBundle → Three.js JSON 배치 변환기 구현 (12 글로스)
+  - 레거시 변환 파이프라인 역공학 성공 (yz sign flip + Icaro-bind override + Playwright 픽셀 검증)
+  - `public/players/sentence/` 신규 플레이어 구현 (번역 + 큐잉 + crossfade)
+  - Playwright E2E 검증: `Olá casa`(4.833s), `Sim bom dia`(7.1s), `Casa escola não`(8.367s) 모두 성공
+  - 융합 토큰 폴백 로직 (`BOM_DIA` → `BOM`+`DIA` 자동 분해)
+- [예정] 어휘 확장 (100개 수준), `asset_bundle.py` UnityPy 드리프트 수정
+
+### 2026-04-08 (화)
+- [완료] `slmb/`, `vlibras/` 두 프로젝트를 단일 저장소로 통합
+- [완료] 공유 아바타/애니메이션 폴더 구성, 메인 랜딩 페이지 생성
+- [완료] Git 저장소 생성, Vercel 배포 완료
+- [완료] 프로젝트 현황 문서 작성
+- [완료] P1 번역 파이프라인 구축 (2026-04-13로 이관)
+
+---
+
+## 작업 이력
+
+### 2026-04-13
+- **P1 파이프라인 M0~M5 완료** (에이전트 병렬 실행)
+  - **M0**: VLibras 번역 API 스펙 실측 (`POST https://traducao2.vlibras.gov.br/translate`, JSON body `{"text":"..."}`, plain text 응답, `\s+` split 파싱, CORS 직접 허용). 상세: `docs-source/claudedocs/vlibras-translation-api.md`
+  - **M1**: `tools/vlibras2slmb/batch/precompute_threejs.py` 신설 — VLibras Unity AssetBundle → Three.js tracks JSON 배치 변환. UnityPy 1.25 lowercase API 대응 인라인 리더 내장. 레거시 파이프라인 변환(yz sign flip `(x,y,z,w)→(x,-y,-z,w)` + 7개 헬퍼 본 Icaro-bind override + static position tracks) 역공학 후 `--legacy` 기본 적용. 스파이크 12 글로스 `public/animations/vlibras/bundles/*.threejs.json` 생성, Icaro bind pose `tools/vlibras2slmb/data/icaro_bind_pose.json`에 베이크.
+  - **M2**: 스킵 — M0에서 CORS 직접 허용 확인, Vercel rewrites 불필요
+  - **M3**: `public/players/sentence/index.html` 신설. 문장 입력 → POST 번역 → ASCII 키 정규화(`NFKD`) → 사전 변환 번들 fetch → 첫 글로스 재생. 글로스 칩 UI(미싱 `⚠️` 표시). `buildClipFromJson`, `loadGlossClip`, `asciiKey`, `translateSentence` 순수 함수화
+  - **M4**: 큐잉 + crossfade 연속 재생. `CROSSFADE_SEC=0.2s`, `mixer.addEventListener('finished')` + 렌더 루프 timeLeft 체크로 다음 액션 `crossFadeTo`. `stopAndDisposeQueue()` 메모리 정리, 재번역 5연속 누수 없음 확인. 전체 duration 기반 타임라인 갱신
+  - **M5**: 융합 토큰 폴백 (`BOM_DIA` → `BOM`+`DIA` split 재조회), 에러 배너 폴리싱, 어휘 확장
+  - **Playwright 픽셀/E2E 검증**: M1에서 `CASA`·`ESCOLA` 레퍼런스 대비 bone delta ≤ 6mm, M3~M5에서 5~10개 문장 시나리오 실측 (총 duration 수치 검증 포함)
+  - **배포 영향 없음**: 순수 정적 사이트 제약 그대로 유지 (`vercel.json` 무수정)
+- 프로젝트 운영 규칙 정립: project-status.md 통합 관리 체계 구축
+  - 작업 이력, 주간보고, 다음 세션 작업을 단일 문서로 관리
+  - 성공 경로만 기록, 코드 변경 시 문서 동기화
+
+### 2026-04-08
+- 프로젝트 통합 완료: slmb + vlibras → sls_brazil_player 단일 구조
+- 공유 리소스 구성: `public/avatars/`, `public/animations/`
+- 메인 랜딩 페이지 + 문서 페이지 생성
+- Vercel 배포 완료 (Git push 자동 배포)
+- CLAUDE.md 프로젝트 설정 문서 작성
+
+### 2026-04-08 이전 (요약)
+- ABNT NBR 25606 표준 전체 분석 완료
+- SLMB 인코더/디코더 구현 및 roundtrip 검증 완료
+- BVH Player, SLMB Pipeline Player 구현 완료
+- VLibras 플레이어 상체 재생 성공 (하체 미완)
+- VLibras→SLMB 스켈레톤 매핑 정의 완료
+
+---
+
 ## 알려진 이슈
 
 ### 1. VLibras 하체 좌표계 보정
-- **문제**: Unity 좌표계(LH)와 glTF/Blender 좌표계(RH) 차이로 하체 애니메이션이 부정확
+- **문제**: Unity 좌표계(LH)와 glTF/Blender 좌표계(RH) 차이로 하체 애니메이션 부정확
 - **원인**: position `[x,y,z]→[x,y,-z]`, quaternion `[x,y,z,w]→[-x,-y,z,w]` 변환이 하체에 완전히 적용되지 않음
-- **영향 범위**: `public/players/vlibras/`, `public/players/vlibras-v3/`
-- **참고 문서**: `docs-source/claudedocs/technical-findings.md`
+- **영향**: `public/players/vlibras/`, `public/players/vlibras-v3/` (Sentence Player는 사전 변환 단계에서 해결됨)
+- **참고**: `docs-source/claudedocs/technical-findings.md`
 
 ### 2. VLibras→SLMB 파이프라인 미완성
-- 스켈레톤 매핑(84→46)은 정의됨 (`tools/vlibras2slmb/data/skeleton_map.py`)
-- 전체 변환 파이프라인 (VLibras AssetBundle → SLMB .xz) 아직 end-to-end 검증 안됨
-- CASA 단어만 테스트됨, 다른 수어 번들 테스트 필요
+- 스켈레톤 매핑(84→46) 정의됨 (`tools/vlibras2slmb/data/skeleton_map.py`)
+- end-to-end 검증 안됨, CASA 단어만 테스트됨
 
----
+### 3. `asset_bundle.py` UnityPy API 드리프트
+- **문제**: `tools/vlibras2slmb/parsing/asset_bundle.py`가 uppercase `kf.value.X/Y/Z/W` 속성을 사용하지만 UnityPy ≥ 1.25는 lowercase(`x/y/z/w`)로 변경됨
+- **영향**: `batch/converter.py::convert_one()`이 `.bundle` 경로로 호출되면 실패. JSON 경로는 영향 없음
+- **우회**: `tools/vlibras2slmb/batch/precompute_threejs.py`는 자체 lowercase 리더 `_read_unity_clip()`을 포함하므로 정상 동작
+- **수정 필요**: `asset_bundle.py`를 lowercase로 마이그레이션하고 공용 리더로 통합 (P2 선행 작업)
 
-## 다음 작업 (우선순위 순)
+### 4. Sentence Player 타임라인 seek 비활성화 (MVP)
+- **문제**: M4 MVP 범위에서 timeline slider를 `disabled=true`로 고정
+- **원인**: 글로벌 큐 시간 → 로컬 클립 시간 역산 + 이전 클립 stop/uncache 조합이 복잡
+- **영향**: 재생 중 임의 지점 이동 불가 (Play/Pause/Stop/Loop는 정상)
+- **우회**: P4에서 구현 예정
 
-### P1: 문장 번역 → 글로스 번들 → 애니메이션 재생 파이프라인 구축
-- **목표**: 포르투갈어 문장을 수어로 변환하고 플레이어에서 재생하는 end-to-end 파이프라인
-- **파이프라인 흐름**:
-  1. 대표 포르투갈어 문장을 VLibras 번역 API로 수어문(글로스 시퀀스) 요청
-     - API: `traducao2.vlibras.gov.br/translate`
-  2. 수어문에 포함된 각 글로스의 번들 에셋을 VLibras CDN에서 다운로드
-     - CDN: `dicionario2.vlibras.gov.br/bundles`
-  3. 다운로드한 번들을 파싱하여 애니메이션 데이터로 변환
-  4. 변환된 애니메이션을 VLibras 플레이어에 적용하여 재생
-- **검증**: 문장 입력 → 수어 애니메이션 연속 재생이 자연스러운지 확인
+### 5. 스파이크 어휘 한정 (21 글로스)
+- **문제**: VLibras 번역 결과 중 사전 변환된 21개만 재생 가능, 나머지는 `⚠️` 미싱 표시
+- **현재 세트**: CASA, ESCOLA, AGUA, OLA, EU, VOCE, OBRIGADO, BOM, DIA, SIM, NAO, POR_FAVOR, AMIGO, AMIGA, TRABALHO, COMER, BEBER, NOME, GOSTAR, MUITO, FAMILIA
+- **우회**: P1 후속 작업에서 100개 수준으로 확장 예정
+- **융합 토큰 폴백 적용됨**: VLibras가 `BOM_DIA` 같은 융합 토큰 반환 시 `_`로 split하여 개별 글로스로 재조회
 
-### P2: SLMB 아바타에 VLibras 애니메이션 적용
-- **목표**: ABNT 표준 아바타(46조인트)에서 VLibras CASA 애니메이션 재생
-- 스켈레톤 리타겟팅 필요: VLibras 84본 → ABNT 46조인트 매핑 (`tools/vlibras2slmb/data/skeleton_map.py`)
-- 변환 흐름: CASA (VLibras) → vlibras2slmb → .slmb.xz → slmb_converter decode → JSON → SLMB Pipeline Player
-- 좌표계 변환 포함: Unity LH → glTF RH
-
-### P3: VLibras 하체 좌표계 보정
-- `public/players/vlibras/index.html`에서 하체 본의 좌표 변환 로직 수정
-- Unity LH → glTF RH 변환을 하체 관절(hip, leg, foot)에 정확히 적용
-- 검증: CASA 애니메이션 재생 시 하체 동작이 자연스러운지 확인
-
----
-
-## 다음 세션 시작 가이드
-
-```
-이전 세션에서 브라질 수어(Libras) 플레이어 프로젝트를 진행했다.
-
-프로젝트 현황: docs-source/claudedocs/project-status.md 참조
-배포: https://sls-brazil-player.vercel.app/
-GitHub: https://github.com/hyunia69/sls_brazil_player
-
-이번 세션에서 할 것:
-[여기에 작업 내용 기입]
-```
+### 6. Windows Python cp949 인코딩 (precompute 스크립트)
+- **문제**: `precompute_threejs.py` 실행 시 비ASCII 글로스(`ÁGUA` 등) print에서 `UnicodeEncodeError`
+- **우회**: `PYTHONIOENCODING=utf-8` 환경 변수 또는 스크립트 상단 `sys.stdout.reconfigure(encoding='utf-8')` 보강
+- **수정 필요**: P1 후속 작업에서 스크립트에 reconfigure 추가
 
 ---
 
@@ -134,7 +149,21 @@ GitHub: https://github.com/hyunia69/sls_brazil_player
 | ABNT 아바타 모델 | `public/avatars/abnt/avatarModel/model_external.gltf` |
 | VLibras 아바타 | `public/avatars/vlibras/{padrao,casa,icaro}/export/*.glb` |
 | CASA 애니메이션 | `public/animations/vlibras/CASA_full.json` |
+| 사전 변환 번들 | `public/animations/vlibras/bundles/*.threejs.json` + `index.json` |
 | ABNT 레퍼런스 BVH | `public/animations/abnt/avatarModel.bvh` |
 | 스켈레톤 매핑 | `tools/vlibras2slmb/data/skeleton_map.py` |
 | 좌표 변환 유틸 | `tools/vlibras2slmb/math_utils/coordinate.py` |
+| **사전 변환기 (P1)** | `tools/vlibras2slmb/batch/precompute_threejs.py` |
+| **Icaro bind pose** | `tools/vlibras2slmb/data/icaro_bind_pose.json` |
+| **스파이크 어휘 목록** | `tools/vlibras2slmb/data/spike_glosses.txt` |
+| **번역 API 스펙** | `docs-source/claudedocs/vlibras-translation-api.md` |
+| **Sentence Player** | `public/players/sentence/index.html` |
 | 기술 검증 결과 | `docs-source/claudedocs/technical-findings.md` |
+
+---
+
+## VLibras 참조 정보
+
+- **번역 API**: `traducao2.vlibras.gov.br/translate`
+- **사전 CDN**: `dicionario2.vlibras.gov.br/bundles`
+- **아바타**: Icaro, Guga, Hosana (T-pose, 84본)

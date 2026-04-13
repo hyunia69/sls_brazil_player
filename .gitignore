@@ -30,6 +30,12 @@ node_modules/
 # Validation test artifacts
 _validation/
 
+# Playwright MCP cache (console logs, page snapshots, screenshots)
+.playwright-mcp/
+
+# Root-level debug screenshots from Playwright verification runs
+/*.png
+
 # Original source directories (archived after migration)
 /slmb/
 /vlibras/
