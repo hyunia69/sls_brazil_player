@@ -128,9 +128,9 @@
 - **영향**: 재생 중 임의 지점 이동 불가 (Play/Pause/Stop/Loop는 정상)
 - **우회**: P4에서 구현 예정
 
-### 5. 스파이크 어휘 한정 (21 글로스)
-- **문제**: VLibras 번역 결과 중 사전 변환된 21개만 재생 가능, 나머지는 `⚠️` 미싱 표시
-- **현재 세트**: CASA, ESCOLA, AGUA, OLA, EU, VOCE, OBRIGADO, BOM, DIA, SIM, NAO, POR_FAVOR, AMIGO, AMIGA, TRABALHO, COMER, BEBER, NOME, GOSTAR, MUITO, FAMILIA
+### 5. 스파이크 어휘 한정 (27 글로스)
+- **문제**: VLibras 번역 결과 중 사전 변환된 27개만 재생 가능, 나머지는 `⚠️` 미싱 표시
+- **현재 세트**: CASA, ESCOLA, AGUA, OLA, EU, VOCE, OBRIGADO, BOM, DIA, SIM, NAO, POR_FAVOR, AMIGO, AMIGA, TRABALHO, COMER, BEBER, NOME, GOSTAR, MUITO, FAMILIA, MORAR, QUERER, ESTUDAR, IR, TER, FALAR
 - **우회**: P1 후속 작업에서 100개 수준으로 확장 예정
 - **융합 토큰 폴백 적용됨**: VLibras가 `BOM_DIA` 같은 융합 토큰 반환 시 `_`로 split하여 개별 글로스로 재조회
 
@@ -167,3 +167,96 @@
 - **번역 API**: `traducao2.vlibras.gov.br/translate`
 - **사전 CDN**: `dicionario2.vlibras.gov.br/bundles`
 - **아바타**: Icaro, Guga, Hosana (T-pose, 84본)
+
+---
+
+## Sentence Player 테스트 가이드
+
+### 모션 파일 저장 위치
+
+| 항목 | 경로 |
+|---|---|
+| **사전 변환 번들 디렉토리** | `public/animations/vlibras/bundles/` |
+| 개별 글로스 파일 | `{GLOSS}.threejs.json` (Three.js KeyframeTrack JSON) |
+| 인덱스 메타데이터 | `public/animations/vlibras/bundles/index.json` — `{raw, key, file, duration}` |
+| 원본 (Unity AssetBundle) | `https://dicionario2.vlibras.gov.br/2018.3.1/WEBGL/<GLOSS>` |
+| 배치 변환기 | `tools/vlibras2slmb/batch/precompute_threejs.py` |
+| 어휘 목록 (재생성 입력) | `tools/vlibras2slmb/data/spike_glosses.txt` |
+| Icaro bind pose (좌표 보정) | `tools/vlibras2slmb/data/icaro_bind_pose.json` |
+
+- **로컬 실행**: `cd public && python -m http.server 8080` → `http://localhost:8080/players/sentence/`
+- **배포 URL**: `https://sls-brazil-player.vercel.app/players/sentence/`
+- **어휘 재생성**: `PYTHONIOENCODING=utf-8 python -m tools.vlibras2slmb.batch.precompute_threejs --gloss-list tools/vlibras2slmb/data/spike_glosses.txt --output-dir public/animations/vlibras/bundles`
+
+### 사용 가능한 어휘 (27개)
+
+- **명사**: CASA, ESCOLA, ÁGUA, OLÁ, AMIGO, AMIGA, TRABALHO, NOME, FAMÍLIA, DIA
+- **대명사**: EU, VOCÊ
+- **동사**: MORAR, QUERER, COMER, BEBER, ESTUDAR, IR, TER, FALAR, GOSTAR
+- **형용사·부사·감탄사**: BOM, MUITO, SIM, NÃO, OBRIGADO, POR_FAVOR
+
+### 테스트 문장 (VLibras API 실측)
+
+아래 표의 "번역 결과"는 `POST https://traducao2.vlibras.gov.br/translate` 실측값입니다. VLibras 번역 엔진은 동일 표현도 맥락에 따라 다르게 글로스화하므로, 재실측 시 소폭 차이 가능.
+
+#### 1) 기초 (1~2어)
+
+| 입력 | 번역 결과 | 큐 | 설명 |
+|---|---|---|---|
+| `Casa` | `CASA` | 1/1 ✅ | 단일 글로스 기본 |
+| `Olá` | `OLA` | 1/1 ✅ | 인사 |
+| `Por favor` | `POR_FAVOR` | 1/1 ✅ | VLibras가 `_` 붙여 단일 글로스로 반환, 사전에 동일 키로 존재 |
+| `Bom dia` | `BOM DIA` | 2/2 ✅ | 공백 분리로 2글로스 |
+| `Olá casa` | `OLA CASA` | 2/2 ✅ | 2연속 재생 |
+| `Bom amigo` | `BOM AMIGO` | 2/2 ✅ | 형용사+명사 |
+| `Você amigo` | `VOCE AMIGO` | 2/2 ✅ | 대명사+명사 |
+| `Trabalho bom` | `TRABALHO BOM` | 2/2 ✅ | 명사+형용사 |
+| `Nome amigo` | `NOME AMIGO` | 2/2 ✅ | 명사 결합 |
+| `Eu comer` | `EU COMER` | 2/2 ✅ | 대명사+동사 |
+
+#### 2) 주어+동사+목적어 (2~3어)
+
+| 입력 | 번역 결과 | 큐 | 비고 |
+|---|---|---|---|
+| `Eu morar casa` | `MORAR CASA` | 2/2 ✅ | VLibras가 `Eu` 드롭 |
+| `Eu querer água` | `QUERER AGUA` | 2/2 ✅ | `Eu` 드롭 |
+| `Eu estudar escola` | `ESTUDAR ESCOLA` | 2/2 ✅ | `Eu` 드롭 |
+| `Eu ter amigo` | `TER AMIGO` | 2/2 ✅ | `Eu` 드롭 |
+| `Eu beber água` | `EU BEBER AGUA` | 3/3 ✅ | `Eu` 유지, 3연속 재생 |
+| `Eu ir escola` | `EU IR ESCOLA` | 3/3 ✅ | `Eu` 유지 |
+| `Eu ter família` | `EU TER FAMILIA` | 3/3 ✅ | `Eu` 유지 |
+| `Eu falar você` | `EU FALAR VOCE` | 3/3 ✅ | 3연속 재생 |
+
+#### 3) 3~4어 (큐잉 + crossfade 확인)
+
+| 입력 | 번역 결과 | 큐 | 총 duration (초) |
+|---|---|---|---|
+| `Sim bom dia` | `SIM BOM DIA` | 3/3 ✅ | ≈ 7.10 |
+| `Casa escola não` | `CASA ESCOLA NAO` | 3/3 ✅ | ≈ 8.37 |
+
+#### 4) 융합 토큰 폴백 검증 (`_` split)
+
+| 입력 | 번역 결과 | 큐 처리 |
+|---|---|---|
+| `Obrigado bom dia` | `OBRIGADO&AGRADECIMENTO BOM_DIA` | `OBRIGADO&AGRADECIMENTO` ⚠️ 미싱 칩 + `BOM_DIA` 폴백 분해 → `BOM`+`DIA` 2연속 재생 (≈ 3.90s) |
+
+#### 5) 알려진 특이 동작·엣지케이스 (참고)
+
+| 입력 | 번역 결과 | 설명 |
+|---|---|---|
+| `Obrigado` (단독) | `OBRIGAR` | 단독일 때 동사 원형으로 변환. bundle에 `OBRIGAR`가 없어 미싱 처리 — `OBRIGADO`는 문장 속일 때 `OBRIGADO&AGRADECIMENTO` 형태로 반환 |
+| `Eu gostar muito` | `GOSTAR` | VLibras가 전체 문장을 단일 글로스로 축약 (의미 압축) |
+| `Família muito bom` | `FAMILIA BOM(+)` | `BOM(+)`은 VLibras 강도 수식자(`매우 좋은`). bundle에 해당 변형이 없어 `BOM(+)` 미싱 처리 |
+| `Casa bonita` | `CASA BONITA` | `BONITA`가 어휘에 없음 — 어휘 확장 대상 |
+
+### 회귀 테스트 권장 시퀀스
+
+다음 5개 문장을 순서대로 입력하면 주요 기능을 빠르게 검증할 수 있습니다:
+
+1. `Casa` — 단일 글로스 기본 재생 (M3 동작)
+2. `Sim bom dia` — 3연속 재생 + 큐잉 + 전체 타임라인 progress (M4 동작)
+3. `Obrigado bom dia` — 융합 토큰 `BOM_DIA` → `BOM`+`DIA` 폴백 + `OBRIGADO&AGRADECIMENTO` 미싱 칩 (M5-A 동작)
+4. `Eu morar casa` — `Eu` 드롭 + 2연속 재생 (어휘 확장 커밋 검증)
+5. `Casa bonita` — 미싱 글로스 경고 UI + 재번역 후 mixer 정리 확인 (M5-C 동작)
+
+모델 전환(Padrao/CASA/Icaro)도 위 문장마다 테스트하면 아바타 스켈레톤 호환성이 확인됩니다.
