@@ -213,6 +213,7 @@
     <button class="model-btn" data-model="casa_tex">CASA</button>
     <button class="model-btn" data-model="icaro">Icaro</button>
   </div>
+  <button id="vlibras-toggle" class="model-btn" type="button" title="VLibras 공식 위젯 표시/숨김">🤟 위젯</button>
 </div>
 
 <div id="error-banner" role="alert" aria-live="assertive">
@@ -477,6 +478,28 @@ function highlightPlayingChip(queueIdx) {
   }
 }
 
+// --- VLibras-safe click registration ---
+// VLibras 공식 위젯이 document/window 레벨 capture phase에서 click을 가로채
+// 우리 chrome 버튼의 click handler가 호출되지 않을 수 있다 (그리고 위젯이 우리 버튼의
+// textContent를 자동 번역해버린다). 우회: 우리 버튼의 click을 더 이른 window-capture
+// 단계에서 가로채 WeakMap 기반 dispatcher로 직접 호출한다. 위젯 OFF여도 동일 동작.
+const __vlibrasSafeClickHandlers = new WeakMap();
+function safeClick(el, handler) {
+  if (!el) return;
+  __vlibrasSafeClickHandlers.set(el, handler);
+}
+window.addEventListener('click', (e) => {
+  let node = e.target;
+  while (node && node !== document.body && node !== document) {
+    if (__vlibrasSafeClickHandlers.has(node)) {
+      e.stopImmediatePropagation();
+      try { __vlibrasSafeClickHandlers.get(node).call(node, e); } catch (err) { console.error(err); }
+      return;
+    }
+    node = node.parentNode;
+  }
+}, true); // capture phase: fire before VLibras' own document-level capture listener
+
 // --- Error banner (dismissible + auto-hide after 4s) ---
 const errorMsgEl = errorBannerEl.querySelector('.msg');
 const errorCloseBtnEl = document.getElementById('error-close-btn');
@@ -492,7 +515,7 @@ function hideError() {
   errorBannerEl.classList.remove('show');
   if (errorTimer) { clearTimeout(errorTimer); errorTimer = null; }
 }
-errorCloseBtnEl.addEventListener('click', hideError);
+safeClick(errorCloseBtnEl, hideError);
 
 // --- Classify caught exceptions into user-friendly messages ---
 function classifyError(err) {
@@ -731,7 +754,7 @@ function setQueuePaused(paused) {
   if (!paused) clock.getDelta();
 }
 
-document.getElementById('btn-play').addEventListener('click', () => {
+safeClick(document.getElementById('btn-play'), () => {
   if (queueActions.length === 0) return;
   // If queue was stopped (not playing, idx=0, time~0) or reached end, restart cleanly
   const last = queueActions[queueActions.length - 1];
@@ -745,10 +768,10 @@ document.getElementById('btn-play').addEventListener('click', () => {
   }
   setQueuePaused(false);
 });
-document.getElementById('btn-pause').addEventListener('click', () => {
+safeClick(document.getElementById('btn-pause'), () => {
   setQueuePaused(true);
 });
-document.getElementById('btn-stop').addEventListener('click', () => {
+safeClick(document.getElementById('btn-stop'), () => {
   if (queueActions.length === 0) return;
   for (const q of queueActions) {
     q.action.stop();
@@ -765,9 +788,9 @@ document.getElementById('btn-stop').addEventListener('click', () => {
   highlightPlayingChip(-1);
   updateTimeline();
 });
-document.getElementById('btn-loop').addEventListener('click', (e) => {
+safeClick(document.getElementById('btn-loop'), function () {
   isLooping = !isLooping;
-  e.target.classList.toggle('active', isLooping);
+  this.classList.toggle('active', isLooping);
   // Individual actions remain LoopOnce; the 'finished' handler decides to restart the queue.
 });
 document.addEventListener('keydown', (e) => {
@@ -778,6 +801,66 @@ document.addEventListener('keydown', (e) => {
     setQueuePaused(isPlaying);
   }
 });
+
+// --- VLibras 공식 위젯 동기화 ---
+// 토글 ON일 때만 같은 텍스트를 플러그인 경로(Plugin.prototype.translate)로 흘려보낸다.
+// 메인 Three.js 파이프라인은 절대 건드리지 않고, 실패해도 throw하지 않는다.
+// API surface (devtools 검증 완료):
+//   window.plugin.translate(text)         ← Plugin.prototype, 입력→번역→재생 일괄
+//   window.plugin.player.translate(text)  ← Player.prototype, 대안 경로
+async function syncToVLibrasPlugin(text) {
+  try {
+    const wrapper = document.querySelector('[vw]');
+    if (!wrapper || !wrapper.classList.contains('enabled')) return;  // 토글 OFF
+    const trimmed = (text || '').trim();
+    if (!trimmed) return;
+
+    // Plugin instance가 준비될 때까지 잠깐 기다린다 (Unity 초기 로드는 access-button
+    // 클릭 직후에 시작되므로 토글 ON 직후 첫 호출은 약간의 지연이 있을 수 있음).
+    const plugin = await waitForVlibrasPlugin(2500);
+    if (!plugin) {
+      if (!syncToVLibrasPlugin._warned) {
+        console.warn('[vlibras-sync] Plugin instance not available; widget runs independently.');
+        syncToVLibrasPlugin._warned = true;
+      }
+      return;
+    }
+
+    // Tier 1: Plugin.prototype.translate(text) — 가장 직접적이고 검증된 경로.
+    if (typeof plugin.translate === 'function') {
+      try {
+        plugin.translate(trimmed);
+        return;
+      } catch (err) {
+        console.warn('[vlibras-sync] plugin.translate threw:', err);
+      }
+    }
+    // Tier 1 alt: Player.prototype.translate(text) — fallback.
+    if (plugin.player && typeof plugin.player.translate === 'function') {
+      try {
+        plugin.player.translate(trimmed);
+        return;
+      } catch (err) {
+        console.warn('[vlibras-sync] plugin.player.translate threw:', err);
+      }
+    }
+    console.warn('[vlibras-sync] No translate method available on plugin instance.');
+  } catch (err) {
+    console.warn('[vlibras-sync] Unexpected error (ignored):', err);
+  }
+}
+
+// Wait for window.plugin to appear (it's lazily created on first access-button click).
+function waitForVlibrasPlugin(timeoutMs) {
+  return new Promise((resolve) => {
+    if (window.plugin) { resolve(window.plugin); return; }
+    const start = Date.now();
+    const interval = setInterval(() => {
+      if (window.plugin) { clearInterval(interval); resolve(window.plugin); return; }
+      if (Date.now() - start >= timeoutMs) { clearInterval(interval); resolve(null); }
+    }, 50);
+  });
+}
 
 // --- Translate button + Enter-key handler ---
 async function handleTranslate() {
@@ -844,10 +927,14 @@ async function handleTranslate() {
       document.getElementById('info-dur').textContent = '-';
       updateTimeline();
       showError('재생 가능한 글로스가 없습니다');
+      // 우리 사전엔 없지만 VLibras 공식 위젯 사전엔 있을 수 있으므로 sync는 시도한다.
+      syncToVLibrasPlugin(text);
       return;
     }
     // M4/M5: play the full queue with crossfade transitions.
     playQueue();
+    // VLibras 공식 위젯 동기화 (fire-and-forget). 토글 OFF면 즉시 리턴.
+    syncToVLibrasPlugin(text);
   } catch (e) {
     document.getElementById('info-current').textContent = '-';
     showError(classifyError(e));
@@ -857,7 +944,7 @@ async function handleTranslate() {
   }
 }
 
-translateBtnEl.addEventListener('click', handleTranslate);
+safeClick(translateBtnEl, handleTranslate);
 sentenceInputEl.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
@@ -907,8 +994,58 @@ await loadModel('padrao_tex');
 requestAnimationFrame(animate);
 
 document.querySelectorAll('.model-btn').forEach(btn => {
-  btn.addEventListener('click', () => loadModel(btn.dataset.model));
+  // model-btn 클래스를 공유하는 vlibras-toggle 버튼은 모델 로드 핸들러에서 제외
+  if (btn.id === 'vlibras-toggle') return;
+  safeClick(btn, () => loadModel(btn.dataset.model));
 });
+
+// --- VLibras 공식 위젯 토글 ---
+// 토글은 wrapper.enabled 클래스만 관리한다. 펼침/닫힘 active 상태는 플러그인 자체 상태머신이
+// 관리하므로 우리가 강제로 active를 추가/제거하면 플러그인이 즉시 리셋한다.
+// 첫 ON에서는 access-button 클릭을 1회 디스패치해 플러그인 인스턴스를 미리 생성한다.
+const VLIBRAS_TOGGLE_KEY = 'vlibrasPluginEnabled';
+const vlibrasToggleBtn = document.getElementById('vlibras-toggle');
+function setVlibrasPluginEnabled(enabled) {
+  const wrapper = document.querySelector('[vw]');
+  if (!wrapper) return;
+  wrapper.classList.toggle('enabled', enabled);
+  vlibrasToggleBtn.classList.toggle('active', enabled);
+  // 첫 ON: 플러그인 인스턴스 lazy 생성을 미리 트리거한다 (이후 호출에서 sync가 즉시 동작).
+  if (enabled && !window.plugin) {
+    const accessBtn = document.querySelector('[vw-access-button]');
+    if (accessBtn) {
+      try { accessBtn.click(); } catch (_) { /* noop */ }
+    }
+  }
+  try { localStorage.setItem(VLIBRAS_TOGGLE_KEY, String(enabled)); } catch (_) { /* private mode */ }
+}
+safeClick(vlibrasToggleBtn, () => {
+  const wrapper = document.querySelector('[vw]');
+  const enabled = !wrapper?.classList.contains('enabled');
+  setVlibrasPluginEnabled(enabled);
+});
+// Restore last toggle state (default OFF)
+try {
+  if (localStorage.getItem(VLIBRAS_TOGGLE_KEY) === 'true') {
+    setVlibrasPluginEnabled(true);
+  }
+} catch (_) { /* private mode */ }
+</script>
+
+<!-- VLibras 공식 위젯 (CDN). 토글 OFF가 기본; #vlibras-toggle로 표시/숨김. -->
+<div vw>
+  <div vw-access-button></div>
+  <div vw-plugin-wrapper>
+    <div class="vw-plugin-top-wrapper"></div>
+  </div>
+</div>
+<script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+<script>
+  new window.VLibras.Widget({
+    rootPath: 'https://vlibras.gov.br/app',
+    position: 'R',
+    opacity: 1
+  });
 </script>
 </body>
 </html>

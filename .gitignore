@@ -39,3 +39,6 @@ _validation/
 # Original source directories (archived after migration)
 /slmb/
 /vlibras/
+
+# Reference clone of the official VLibras portal (used during plugin integration research, ~2.1GB)
+/vlibras-portal/

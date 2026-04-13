@@ -19,7 +19,8 @@
 | VLibras Player | 🔄 상체 완료, 하체 미완 | `public/players/vlibras/` |
 | VLibras Player v3 | 🔄 상체 완료, 하체 미완 | `public/players/vlibras-v3/` |
 | **Sentence Player (P1)** | ✅ 완료 | `public/players/sentence/` |
-| **Bundle 사전 변환기** | ✅ 완료 (21 글로스) | `tools/vlibras2slmb/batch/precompute_threejs.py` |
+| **Sentence Player ↔ VLibras 공식 위젯 sync** | ✅ 완료 (2026-04-14) | `public/players/sentence/index.html` (`#vlibras-toggle` + `syncToVLibrasPlugin`) |
+| **Bundle 사전 변환기** | ✅ 완료 (27 글로스) | `tools/vlibras2slmb/batch/precompute_threejs.py` |
 | Model Viewer | ✅ 완료 | `public/players/viewer/` |
 | VLibras→SLMB 변환기 | 🔄 매핑 완료, 파이프라인 미완 | `tools/vlibras2slmb/` |
 | 랜딩 페이지 | ✅ 완료 | `public/index.html` |
@@ -59,6 +60,15 @@
 
 ## 주간보고
 
+### 2026-04-14 (화)
+- [완료] **Sentence Player ↔ VLibras 공식 위젯 통합** — 한 번의 문장 입력으로 로컬 Three.js 아바타와 공식 위젯 Unity WebGL 아바타가 동시에 같은 문장을 재생
+  - 공식 CDN 위젯 임베드 (`vlibras.gov.br/app/vlibras-plugin.js`), 토글 OFF 기본, `localStorage`로 상태 복원
+  - `syncToVLibrasPlugin(text)` + `waitForVlibrasPlugin(2500ms)` 구현. Tier 1 `plugin.translate(text)` 성공 확인 → Tier 2/3/4 폴백 생략
+  - 첫 ON에서 `[vw-access-button]` 자동 클릭해 `window.plugin` lazy 초기화 선행
+- [완료] **VLibras 위젯 click 가로챔 우회**: 위젯이 document capture phase에서 전역 click을 가로채 우리 chrome 버튼의 핸들러 호출을 막고 버튼 textContent까지 자동 번역해버리는 충돌 발견 → `safeClick()` WeakMap 기반 window-capture dispatcher로 우회. `translate-btn`, `vlibras-toggle`에 적용
+- [완료] **문서 정리**: `sentence-vlibras-plugin-integration-plan.md` 헤더에 구현 결과 요약 추가, `vlibras-portal/`(2.1GB 참조 클론)을 `.gitignore`에 등록, 루트 검증용 PNG 제거
+- [예정] 어휘 확장 (27 → 100 수준), `asset_bundle.py` UnityPy 1.25+ 마이그레이션(P2 선행), Sentence Player seek(P4)
+
 ### 2026-04-13 (월)
 - [완료] **P1 end-to-end 파이프라인 구축 완료** (M0~M5)
   - VLibras 번역 API 스펙 실측 확정 (POST JSON, plain text 응답, CORS 직접 허용)
@@ -83,6 +93,21 @@
 ---
 
 ## 작업 이력
+
+### 2026-04-14
+- **Sentence Player ↔ VLibras 공식 위젯 통합 완료** (`public/players/sentence/index.html` 단일 파일, +145/-8 라인)
+  - **Step 1 임베드** (line 1035-1049): `<div vw><div vw-access-button>...</div></div>` + `https://vlibras.gov.br/app/vlibras-plugin.js` + `new VLibras.Widget({position:'R', opacity:1})`. 토글 OFF 기본 (`enabled` 클래스 없음).
+  - **Step 2 토글 버튼** (line 216, 1002-1032): `#vlibras-toggle`(`🤟 위젯`) 컨트롤 바 우측에 추가. `setVlibrasPluginEnabled(enabled)` 헬퍼가 `[vw]`의 `enabled` 클래스만 관리. 첫 ON에서는 `[vw-access-button]` 자동 클릭을 디스패치해 `window.plugin` lazy 초기화를 선행. `localStorage['vlibrasPluginEnabled']`로 상태 복원.
+  - **Step 3 호출 지점** (line 931, 937): `handleTranslate()` 성공 후 `playQueue()` 직후에 `syncToVLibrasPlugin(text)` fire-and-forget. 로컬 번들에 없는 미싱 글로스 분기에서도 호출 (공식 위젯엔 있을 수 있으므로).
+  - **Step 4 Tier 1 동기화** (line 805-863): `plugin.translate(text)` → `plugin.player.translate(text)` 순차 시도. `waitForVlibrasPlugin(2500ms)`가 `window.plugin` 존재 여부를 50ms 간격 polling. 실패 시 `console.warn` 1회 + 메인 파이프라인 영향 없음.
+  - **Tier 2/3/4 생략**: Tier 1이 확실히 동작 → Selection 트릭, 입력박스 스크래핑, 안내 UI 모두 미구현.
+- **VLibras click 가로챔 버그 우회** (line 481-501, 947, 1022): 위젯이 document capture phase listener로 전역 click을 가로채 ① 우리 버튼 핸들러 실행 차단, ② 버튼 textContent(`🤟 위젯`)를 자동 번역 트리거 두 가지 문제 발생. **해결**: `__vlibrasSafeClickHandlers` WeakMap + `window` capture phase listener로 우리 버튼을 먼저 처리하고 `stopImmediatePropagation()`. `safeClick(el, handler)` API로 `translate-btn`과 `vlibras-toggle`에 바인딩. Plan에 없던 추가 구현.
+- **Plan과 다른 결정**: 토글 ON에서 `[vw-access-button]`/`[vw-plugin-wrapper]`의 `active` 클래스는 강제 토글하지 않음 — 플러그인 내부 상태머신이 즉시 리셋하여 사용자가 펼치는 순간 원상복구되는 부작용. `enabled`만 관리. 주석 line 1003-1004에 기록.
+- **문서·워크스페이스 정리**:
+  - `sentence-vlibras-plugin-integration-plan.md` 헤더에 "구현 결과 요약 (2026-04-14)" 섹션 추가, 상태를 "✅ 구현 완료"로 갱신.
+  - `.gitignore`에 `/vlibras-portal/` 추가 (로컬 참조 클론 2.1GB, 커밋 대상 아님).
+  - 루트 `sentence-toggle-on.png` 검증용 스크린샷 삭제.
+- **미커밋 남은 항목 없음**.
 
 ### 2026-04-13
 - **P1 파이프라인 M0~M5 완료** (에이전트 병렬 실행)
