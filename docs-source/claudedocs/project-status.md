@@ -67,6 +67,7 @@
   - 첫 ON에서 `[vw-access-button]` 자동 클릭해 `window.plugin` lazy 초기화 선행
 - [완료] **VLibras 위젯 click 가로챔 우회**: 위젯이 document capture phase에서 전역 click을 가로채 우리 chrome 버튼의 핸들러 호출을 막고 버튼 textContent까지 자동 번역해버리는 충돌 발견 → `safeClick()` WeakMap 기반 window-capture dispatcher로 우회. `translate-btn`, `vlibras-toggle`에 적용
 - [완료] **문서 정리**: `sentence-vlibras-plugin-integration-plan.md` 헤더에 구현 결과 요약 추가, `vlibras-portal/`(2.1GB 참조 클론)을 `.gitignore`에 등록, 루트 검증용 PNG 제거
+- [완료] **메인 vs. 위젯 chirality 차이 분석**: 사용자가 두 아바타의 손잡이(메인=오른손, 위젯=왼손) 차이를 보고 → 코드 추적, LIBRAS 학술 컨벤션 조사, VLibras 위젯 옵션 조사. 결론: 두 표현 모두 LIBRAS 측면에서 valid (메인은 학술 문서화 컨벤션에 부합, 위젯은 VLibras 공식 채널 일관 베이크). 수정 작업 없음. 분석 문서 [`avatar-handedness-analysis.md`](avatar-handedness-analysis.md) 작성 + 알려진 이슈 #7 추가
 - [예정] 어휘 확장 (27 → 100 수준), `asset_bundle.py` UnityPy 1.25+ 마이그레이션(P2 선행), Sentence Player seek(P4)
 
 ### 2026-04-13 (월)
@@ -107,7 +108,12 @@
   - `sentence-vlibras-plugin-integration-plan.md` 헤더에 "구현 결과 요약 (2026-04-14)" 섹션 추가, 상태를 "✅ 구현 완료"로 갱신.
   - `.gitignore`에 `/vlibras-portal/` 추가 (로컬 참조 클론 2.1GB, 커밋 대상 아님).
   - 루트 `sentence-toggle-on.png` 검증용 스크린샷 삭제.
-- **미커밋 남은 항목 없음**.
+- **메인 vs. VLibras 위젯 chirality 차이 분석** (`docs-source/claudedocs/avatar-handedness-analysis.md` 신규):
+  - **현상**: 같은 글로스에서 메인은 signer 오른손, 위젯은 signer 왼손. 사용자가 gov.br 공식 사이트 위젯도 동일하게 왼손인 것을 확인 → random pick 아닌 일관 베이크.
+  - **코드 추적**: `precompute_threejs.py:494-495`의 `(x,y,z,w)→(x,-y,-z,w)` 회전 변환 = X-축 미러. `coordinate.py`의 표준 변환은 정의돼 있지만 호출 안 됨. `icaro_bind_pose.json`의 R/L bone 배치도 X-mirror된 구조여서 self-consistent. 메인 = double-mirror 결과로 right-handed dominance 출력.
+  - **위젯 측 조사**: VLibras Widget 6.0.0 docs, `configs.json`, `vlibras-plugin.chunk.js` 모두 dominant-hand 옵션 부재. 위젯은 Unity 자산 베이크 그대로 재생, 우리 통제 밖.
+  - **LIBRAS 컨벤션 조사**: 양손 모두 valid (`libras.com.br` 5 parameters), 학술 문서화는 오른손이 표준, 학습 연구는 right/left 대신 dominant/non-dominant로 명시.
+  - **결론**: 둘 다 valid, 메인이 학술 컨벤션·인구통계 다수에 부합, 위젯이 VLibras 공식 채널 일관성에 부합. 수정 작업 없음. project-status.md "알려진 이슈 #7"에 한 줄 요약 + 분석 문서 링크 추가.
 
 ### 2026-04-13
 - **P1 파이프라인 M0~M5 완료** (에이전트 병렬 실행)
@@ -180,6 +186,12 @@
 - **문제**: `precompute_threejs.py` 실행 시 비ASCII 글로스(`ÁGUA` 등) print에서 `UnicodeEncodeError`
 - **우회**: `PYTHONIOENCODING=utf-8` 환경 변수 또는 스크립트 상단 `sys.stdout.reconfigure(encoding='utf-8')` 보강
 - **수정 필요**: P1 후속 작업에서 스크립트에 reconfigure 추가
+
+### 7. 메인 캔버스 vs. VLibras 위젯 — 손잡이(chirality) 차이
+- **현상**: 같은 글로스에서 메인 Three.js 아바타는 signer 오른손, VLibras 공식 위젯 아바타는 signer 왼손으로 signing. gov.br 공식 사이트 위젯도 동일하게 왼손.
+- **결론**: 둘 다 LIBRAS 측면에서 valid. 메인이 학술 문서화 컨벤션과 인구통계 다수에 부합하고, 위젯은 VLibras 공식 채널 모두에서 일관된 베이크 정책. **수정 작업 없음**.
+- **원인 요약**: precompute_threejs.py의 X-mirror 회전 변환(`(x,y,z,w)→(x,-y,-z,w)`)이 Icaro 스켈레톤의 X-mirror된 R/L bone 배치와 self-consistent하게 결합돼 학술 컨벤션 dominance를 만들어냄. 위젯은 Unity 자산이 베이크된 그대로 재생하며 dominant-hand 옵션 부재.
+- **상세 분석**: [`avatar-handedness-analysis.md`](avatar-handedness-analysis.md) — 코드 추적, LIBRAS 컨벤션 자료, 위젯 옵션 조사, 가설 평가 포함.
 
 ---
 
