@@ -1,0 +1,1687 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stroke Range Test - VLibras</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; color: #eee; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+  #canvas { display: block; width: 100vw; height: 100vh; }
+
+  #controls {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 20px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.25) 100%);
+    z-index: 10;
+    flex-wrap: wrap;
+  }
+  #controls h1 { font-size: 15px; font-weight: 600; margin-right: 4px; white-space: nowrap; }
+  #controls .divider { width: 1px; height: 22px; background: rgba(255,255,255,0.12); }
+
+  #sentence-input {
+    flex: 1 1 240px;
+    min-width: 220px;
+    padding: 8px 14px;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.08);
+    color: #eee;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  #sentence-input::placeholder { color: rgba(255,255,255,0.35); }
+  #sentence-input:focus {
+    border-color: #4361ee;
+    background: rgba(255,255,255,0.12);
+  }
+
+  #translate-btn {
+    padding: 8px 16px;
+    border: 1px solid #2e7d8a;
+    border-radius: 6px;
+    background: #2e7d8a;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    white-space: nowrap;
+  }
+  #translate-btn:hover { background: #3c98a7; }
+  #translate-btn:active { transform: translateY(1px); }
+  #translate-btn:disabled { background: #555; border-color: #555; cursor: not-allowed; }
+
+  #word-input {
+    width: 180px;
+    padding: 8px 14px;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.08);
+    color: #eee;
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  #word-input::placeholder { color: rgba(255,255,255,0.35); }
+  #word-input:focus {
+    border-color: #4361ee;
+    background: rgba(255,255,255,0.12);
+  }
+
+  #load-btn {
+    padding: 8px 18px;
+    border: 1px solid #4361ee;
+    border-radius: 6px;
+    background: #4361ee;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    white-space: nowrap;
+  }
+  #load-btn:hover { background: #5670f0; }
+  #load-btn:active { transform: translateY(1px); }
+  #load-btn:disabled { background: #555; border-color: #555; cursor: not-allowed; }
+
+  #batch-btn {
+    padding: 8px 18px;
+    border: 1px solid #e17055;
+    border-radius: 6px;
+    background: #e17055;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    white-space: nowrap;
+  }
+  #batch-btn:hover { background: #eb8268; }
+  #batch-btn:active { transform: translateY(1px); }
+  #batch-btn:disabled { background: #555; border-color: #555; cursor: not-allowed; }
+
+  .model-selector { display: flex; gap: 6px; margin-left: auto; }
+  .model-btn {
+    padding: 6px 14px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+    background: rgba(255,255,255,0.05); color: #ccc; cursor: pointer;
+    font-size: 12px; transition: all 0.2s;
+  }
+  .model-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .model-btn.active { background: #4361ee; border-color: #4361ee; color: #fff; }
+
+  #error-banner {
+    position: fixed; top: 62px; left: 50%;
+    transform: translate(-50%, -20px);
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px;
+    background: rgba(220, 53, 69, 0.95);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    z-index: 20;
+    max-width: 80%;
+  }
+  #error-banner.show {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-50%, 0);
+  }
+  #error-banner .close-btn {
+    background: none; border: none; color: #fff;
+    font-size: 18px; cursor: pointer; line-height: 1;
+    padding: 0 4px;
+  }
+
+  #player-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    padding: 12px 20px 16px;
+    background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+    z-index: 10;
+  }
+  #stroke-bar {
+    position: relative; height: 8px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 4px;
+    margin-bottom: 8px;
+    overflow: visible;
+  }
+  #stroke-highlight {
+    position: absolute; top: 0; height: 100%;
+    background: linear-gradient(90deg, rgba(120, 200, 255, 0.6), rgba(67, 97, 238, 0.6));
+    border-radius: 4px;
+    transition: left 0.25s, width 0.25s;
+  }
+  #stroke-cursor {
+    position: absolute; top: -3px;
+    width: 2px; height: 14px;
+    background: #ffcc33;
+    pointer-events: none;
+    box-shadow: 0 0 4px rgba(255, 204, 51, 0.8);
+  }
+  #stroke-legend {
+    display: flex; gap: 14px;
+    font-size: 10px; color: #888;
+    margin-bottom: 6px;
+    padding-left: 2px;
+  }
+  #stroke-legend .swatch {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 2px;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+
+  #timeline-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  #timeline {
+    flex: 1; height: 6px; appearance: none; background: rgba(255,255,255,0.15);
+    border-radius: 3px; cursor: pointer; outline: none;
+  }
+  #timeline::-webkit-slider-thumb {
+    appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: #4361ee; cursor: pointer;
+  }
+  #timeline:disabled { opacity: 0.5; cursor: not-allowed; }
+  #time-display { font-size: 12px; color: #aaa; min-width: 130px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  #btn-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .play-btn {
+    padding: 6px 14px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px;
+    background: rgba(255,255,255,0.05); color: #ccc; cursor: pointer;
+    font-size: 13px; transition: all 0.2s;
+  }
+  .play-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+  .play-btn.active { background: #4361ee; border-color: #4361ee; color: #fff; }
+  .separator { width: 1px; height: 20px; background: rgba(255,255,255,0.15); margin: 0 6px; }
+  .mode-label { font-size: 12px; color: #888; }
+
+  #info {
+    position: fixed; top: 66px; left: 16px;
+    padding: 12px 16px; border-radius: 8px;
+    background: rgba(0,0,0,0.65); backdrop-filter: blur(8px);
+    font-size: 12px; line-height: 1.75; z-index: 10;
+    min-width: 260px;
+    font-variant-numeric: tabular-nums;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  #info .label { color: #888; display: inline-block; min-width: 74px; }
+  #info .value { color: #eee; font-weight: 500; }
+  #info .section-title {
+    color: #4361ee;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 4px;
+    margin-bottom: 2px;
+  }
+  #info .section-title:first-child { margin-top: 0; }
+
+  /* Compare panel (chart + A/B/C/D methods) */
+  #compare-panel {
+    position: fixed; top: 66px; right: 16px;
+    width: 524px;
+    padding: 12px 14px;
+    background: rgba(0,0,0,0.68);
+    backdrop-filter: blur(8px);
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.08);
+    font-size: 11px;
+    z-index: 10;
+    max-height: calc(100vh - 200px);
+    overflow-y: auto;
+  }
+  .panel-title {
+    color: #4361ee;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  #chart {
+    display: block;
+    width: 100%;
+    max-width: 496px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 4px;
+    margin-bottom: 4px;
+  }
+  .chart-legend {
+    display: flex;
+    gap: 10px;
+    font-size: 9px;
+    color: #aaa;
+    margin-bottom: 10px;
+    padding-left: 2px;
+    flex-wrap: wrap;
+  }
+  .chart-legend span { display: inline-flex; align-items: center; }
+  .chart-legend i {
+    display: inline-block;
+    width: 12px; height: 2px;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .chart-legend i.dashed {
+    background: transparent !important;
+    border-top: 2px dashed #888;
+    height: 0;
+  }
+  .method-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .method-row {
+    display: grid;
+    grid-template-columns: 140px 1fr 140px;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 4px;
+    border-left: 3px solid transparent;
+  }
+  .method-row[data-method="A"] { border-left-color: #8fe8a0; }
+  .method-row[data-method="B"] { border-left-color: #c39ce0; }
+  .method-row[data-method="C"] { border-left-color: #ff9c47; }
+  .method-row[data-method="D"] { border-left-color: #ffcc33; }
+  .method-row.active { background: rgba(67, 97, 238, 0.12); }
+  .method-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    font-size: 11px;
+  }
+  .method-label strong { color: #eee; }
+  .method-label .desc { color: #888; font-weight: normal; }
+  .method-sliders {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .method-sliders label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: #aaa;
+  }
+  .method-sliders input[type="range"] {
+    width: 70px; height: 4px;
+    appearance: none;
+    background: rgba(255,255,255,0.15);
+    border-radius: 2px;
+    outline: none;
+  }
+  .method-sliders input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    background: #4361ee;
+    cursor: pointer;
+  }
+  .slider-val {
+    min-width: 36px;
+    text-align: right;
+    color: #eee;
+    font-variant-numeric: tabular-nums;
+    font-size: 10px;
+  }
+  .method-result {
+    font-size: 10px;
+    color: #8fe8a0;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .method-result .ratio { color: #aaa; margin-left: 4px; }
+
+  #loading {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #1a1a2e; z-index: 100; transition: opacity 0.4s;
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+  .spinner {
+    width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: #4361ee; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  #loading span { margin-left: 16px; font-size: 14px; color: #888; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div><span>Loading...</span></div>
+
+<div id="controls">
+  <h1>Stroke Test</h1>
+  <input type="text" id="sentence-input" placeholder="문장 입력 (예: Oi amigo, você quer comer?)" autocomplete="off" />
+  <button id="translate-btn" type="button" title="VLibras 번역 API 호출 후 배치 재생">번역 &amp; 배치</button>
+  <span class="divider"></span>
+  <input type="text" id="word-input" placeholder="단어 (예: SIM, BOM)" autocomplete="off" />
+  <button id="load-btn" type="button">로드</button>
+  <button id="batch-btn" type="button" title="SIM → BOM → DIA 프리셋 배치">Sim bom dia</button>
+  <span class="divider"></span>
+  <div class="model-selector">
+    <button class="model-btn active" data-model="padrao_tex">Padrao</button>
+    <button class="model-btn" data-model="casa_tex">CASA</button>
+    <button class="model-btn" data-model="icaro">Icaro</button>
+  </div>
+</div>
+
+<div id="error-banner" role="alert" aria-live="assertive">
+  <span class="msg"></span>
+  <button type="button" class="close-btn" id="error-close-btn" aria-label="Close">&times;</button>
+</div>
+
+<div id="info">
+  <div class="section-title">Clip</div>
+  <div><span class="label">Word: </span><span class="value" id="info-word">-</span></div>
+  <div><span class="label">Duration: </span><span class="value" id="info-dur">-</span></div>
+  <div><span class="label">Model: </span><span class="value" id="info-model">-</span></div>
+  <div class="section-title">Active Stroke</div>
+  <div><span class="label">Method: </span><span class="value" id="info-active-method">A</span></div>
+  <div><span class="label">Stroke: </span><span class="value" id="info-stroke">-</span></div>
+  <div><span class="label">Frames: </span><span class="value" id="info-stroke-frames">-</span></div>
+  <div><span class="label">Ratio: </span><span class="value" id="info-ratio">-</span></div>
+  <div><span class="label">Clamp: </span><span class="value" id="info-clamp">-</span></div>
+  <div><span class="label">Mode: </span><span class="value" id="info-mode">Stroke only</span></div>
+</div>
+
+<div id="compare-panel">
+  <div class="panel-title">Motion Profile &amp; Method Comparison</div>
+  <svg id="chart" width="496" height="180" viewBox="0 0 496 180" xmlns="http://www.w3.org/2000/svg"></svg>
+  <div class="chart-legend">
+    <span><i style="background:#4361ee;"></i>Velocity (rad/s)</span>
+    <span><i class="dashed"></i>Cumulative</span>
+    <span><i style="background:#ff9c47;"></i>Rest-pose distance (rad)</span>
+  </div>
+  <div class="method-list">
+    <div class="method-row active" data-method="A">
+      <label class="method-label">
+        <input type="radio" name="active-method" value="A" checked>
+        <strong>A.</strong> <span class="desc">Cumulative %</span>
+      </label>
+      <div class="method-sliders">
+        <label>head <input type="range" class="slider" data-param="headPct" min="5" max="35" value="12" step="1"><span class="slider-val">12%</span></label>
+        <label>tail <input type="range" class="slider" data-param="tailPct" min="5" max="35" value="12" step="1"><span class="slider-val">12%</span></label>
+      </div>
+      <div class="method-result">-</div>
+    </div>
+    <div class="method-row" data-method="B">
+      <label class="method-label">
+        <input type="radio" name="active-method" value="B">
+        <strong>B.</strong> <span class="desc">Peak-hold window</span>
+      </label>
+      <div class="method-sliders">
+        <label>vel ≥ peak × <input type="range" class="slider" data-param="thresholdPct" min="15" max="85" value="45" step="1"><span class="slider-val">45%</span></label>
+      </div>
+      <div class="method-result">-</div>
+    </div>
+    <div class="method-row" data-method="C">
+      <label class="method-label">
+        <input type="radio" name="active-method" value="C">
+        <strong>C.</strong> <span class="desc">Rest-pose + hold plateau (90%)</span>
+      </label>
+      <div class="method-sliders">
+        <label>dist ≥ max × <input type="range" class="slider" data-param="restPct" min="10" max="90" value="30" step="1"><span class="slider-val">30%</span></label>
+      </div>
+      <div class="method-result">-</div>
+    </div>
+    <div class="method-row" data-method="D">
+      <label class="method-label">
+        <input type="radio" name="active-method" value="D">
+        <strong>D.</strong> <span class="desc">Peak drop (centered)</span>
+      </label>
+      <div class="method-sliders">
+        <label>drop <input type="range" class="slider" data-param="dropPct" min="10" max="70" value="40" step="1"><span class="slider-val">40%</span></label>
+      </div>
+      <div class="method-result">-</div>
+    </div>
+  </div>
+</div>
+
+<div id="player-bar">
+  <div id="stroke-legend">
+    <span><span class="swatch" style="background:rgba(120,200,255,0.6);"></span>Stroke 구간 (active method)</span>
+    <span><span class="swatch" style="background:rgba(255,255,255,0.12);"></span>Prep / Recovery</span>
+    <span><span class="swatch" style="background:#ffcc33;"></span>재생 커서</span>
+  </div>
+  <div id="stroke-bar">
+    <div id="stroke-highlight"></div>
+    <div id="stroke-cursor"></div>
+  </div>
+  <div id="timeline-row">
+    <input type="range" id="timeline" min="0" max="1000" value="0" step="1" disabled>
+    <span id="time-display">0.000 / 0.000s</span>
+  </div>
+  <div id="btn-row">
+    <button class="play-btn" id="btn-play">Play</button>
+    <button class="play-btn" id="btn-pause">Pause</button>
+    <button class="play-btn" id="btn-stop">Stop</button>
+    <button class="play-btn active" id="btn-loop">Loop</button>
+    <div class="separator"></div>
+    <span class="mode-label">Mode:</span>
+    <button class="play-btn" id="mode-full">Full</button>
+    <button class="play-btn active" id="mode-stroke">Stroke only</button>
+  </div>
+</div>
+
+<canvas id="canvas"></canvas>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// --- Config ---
+const MODELS = {
+  padrao_tex: '/avatars/vlibras/padrao/export/padrao_tex.glb',
+  casa_tex:   '/avatars/vlibras/casa/export/casa_tex.glb',
+  icaro:      '/avatars/vlibras/icaro/export/icaro.glb',
+};
+const BUNDLE_INDEX_URL = '/animations/vlibras/bundles/index.json';
+const BUNDLE_BASE = '/animations/vlibras/bundles/';
+const TRANSLATE_URL = 'https://traducao2.vlibras.gov.br/translate';
+const EXCLUDE_NAMES = ['Icosphere'];
+
+// SYNC: public/players/sentence/index.html:331-342 (Method A baseline constants)
+const STROKE_PAD_HEAD   = 0.05;
+const STROKE_PAD_TAIL   = 0.05;
+const MIN_STROKE_RATIO  = 0.40;
+const STROKE_SAMPLE_N   = 60;
+const STROKE_BONES = [
+  'BnBracoR', 'BnBracoL',
+  'BnAntBracoR', 'BnAntBracoL',
+  'BnMaoOrientR', 'BnMaoOrientL',
+];
+
+// --- Scene ---
+const canvas = document.getElementById('canvas');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
+camera.position.set(0, 1.5, 4);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, 1, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.update();
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+dirLight.position.set(3, 5, 3);
+scene.add(dirLight);
+scene.add(new THREE.DirectionalLight(0x8888ff, 0.4).translateX(-3).translateY(2));
+scene.add(new THREE.GridHelper(10, 20, 0x333355, 0x222244));
+
+// --- State ---
+let currentModel = null;
+let bundleIndex = null;
+let mixer = null;
+let currentAction = null;
+let currentClip = null;
+let currentDuration = 0;
+let currentStrokeStart = 0;
+let currentStrokeEnd = 0;
+let currentClamp = false;
+let currentRaw = null;
+let mode = 'stroke';
+let isPlaying = false;
+let isLooping = true;
+let batchRunning = false;
+// Batch crossfade state
+let batchQueue = [];             // [{raw, clip, duration, strokeStart, strokeEnd, action, _fadeStarted, nextFadeSec}]
+let batchCurrentIdx = 0;
+let batchMode = false;
+let batchMixer = null;
+let batchOnFinished = null;
+const BATCH_FADE_SEC = 0.2;      // crossfade duration between adjacent glosses (200ms)
+const clock = new THREE.Clock();
+const loader = new GLTFLoader();
+
+// --- Profile + method state ---
+let currentProfile = null;
+const currentMethodResults = { A: null, B: null, C: null, D: null };
+let activeMethod = 'A';
+const methodParams = {
+  A: { headPct: 12, tailPct: 12 },
+  B: { thresholdPct: 45 },
+  C: { restPct: 30 },
+  D: { dropPct: 40 },
+};
+const METHOD_COLORS = { A: '#8fe8a0', B: '#c39ce0', C: '#ff9c47', D: '#ffcc33' };
+
+// --- DOM refs ---
+const loadingEl = document.getElementById('loading');
+const sentenceInputEl = document.getElementById('sentence-input');
+const translateBtnEl = document.getElementById('translate-btn');
+const wordInputEl = document.getElementById('word-input');
+const loadBtnEl = document.getElementById('load-btn');
+const batchBtnEl = document.getElementById('batch-btn');
+const modeFullBtnEl = document.getElementById('mode-full');
+const modeStrokeBtnEl = document.getElementById('mode-stroke');
+const loopBtnEl = document.getElementById('btn-loop');
+const playBtnEl = document.getElementById('btn-play');
+const pauseBtnEl = document.getElementById('btn-pause');
+const stopBtnEl = document.getElementById('btn-stop');
+const timelineEl = document.getElementById('timeline');
+const timeDisplayEl = document.getElementById('time-display');
+const strokeHighlightEl = document.getElementById('stroke-highlight');
+const strokeCursorEl = document.getElementById('stroke-cursor');
+const errorBannerEl = document.getElementById('error-banner');
+const errorMsgEl = errorBannerEl.querySelector('.msg');
+const errorCloseBtnEl = document.getElementById('error-close-btn');
+const infoWordEl = document.getElementById('info-word');
+const infoDurEl = document.getElementById('info-dur');
+const infoStrokeEl = document.getElementById('info-stroke');
+const infoStrokeFramesEl = document.getElementById('info-stroke-frames');
+const infoRatioEl = document.getElementById('info-ratio');
+const infoClampEl = document.getElementById('info-clamp');
+const infoModeEl = document.getElementById('info-mode');
+const infoModelEl = document.getElementById('info-model');
+const infoActiveMethodEl = document.getElementById('info-active-method');
+const chartEl = document.getElementById('chart');
+
+// --- Error banner ---
+let errorTimer = null;
+function showError(msg) {
+  console.error('[stroke-test]', msg);
+  errorMsgEl.textContent = msg;
+  errorBannerEl.classList.add('show');
+  if (errorTimer) clearTimeout(errorTimer);
+  errorTimer = setTimeout(hideError, 4000);
+}
+function hideError() {
+  errorBannerEl.classList.remove('show');
+  if (errorTimer) { clearTimeout(errorTimer); errorTimer = null; }
+}
+
+// --- SYNC: sentence/index.html:368-370 (ASCII normalize: NFKD + 대문자) ---
+function asciiKey(gloss) {
+  return gloss.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+}
+
+// --- SYNC: sentence/index.html:373-377 (bundle index loader) ---
+async function loadBundleIndex() {
+  const resp = await fetch(BUNDLE_INDEX_URL, { cache: 'no-store' });
+  if (!resp.ok) throw new Error(`Bundle index load failed: ${resp.status}`);
+  bundleIndex = await resp.json();
+}
+
+// --- SYNC: sentence/index.html:380-397 (JSON → THREE.AnimationClip) ---
+function buildClipFromJson(data) {
+  const tracks = [];
+  for (const t of data.tracks) {
+    const times = new Float32Array(t.times);
+    const values = new Float32Array(t.values);
+    let track;
+    if (t.name.endsWith('.quaternion')) {
+      track = new THREE.QuaternionKeyframeTrack(t.name, times, values);
+    } else if (t.name.endsWith('.position') || t.name.endsWith('.scale')) {
+      track = new THREE.VectorKeyframeTrack(t.name, times, values);
+    } else {
+      track = new THREE.NumberKeyframeTrack(t.name, times, values);
+    }
+    tracks.push(track);
+  }
+  return new THREE.AnimationClip(data.name, data.duration, tracks);
+}
+
+// --- SYNC: sentence/index.html:400-422 (binary search + SLERP) ---
+function sampleQuaternionAt(track, t) {
+  const times = track.times;
+  const values = track.values;
+  const n = times.length;
+  if (n === 0) return new THREE.Quaternion();
+  if (t <= times[0]) {
+    return new THREE.Quaternion(values[0], values[1], values[2], values[3]);
+  }
+  if (t >= times[n - 1]) {
+    const i = (n - 1) * 4;
+    return new THREE.Quaternion(values[i], values[i + 1], values[i + 2], values[i + 3]);
+  }
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (times[mid] <= t) lo = mid;
+    else hi = mid;
+  }
+  const u = (t - times[lo]) / (times[hi] - times[lo]);
+  const a = new THREE.Quaternion(values[lo*4], values[lo*4+1], values[lo*4+2], values[lo*4+3]);
+  const b = new THREE.Quaternion(values[hi*4], values[hi*4+1], values[hi*4+2], values[hi*4+3]);
+  return a.slerp(b, u);
+}
+
+// ============================================================================
+// Motion profile (shared by all 4 methods)
+// ============================================================================
+// Returns { dur, N, dt, times, deltas, cumulative, velocities, restDists,
+//           total, peakVel, peakIdx, maxRestDist }
+// - deltas[i]      = sum of STROKE_BONES angular delta between sample i and i+1 (rad)
+// - cumulative[i]  = sum of deltas[0..i-1]
+// - velocities[i]  = deltas[i] / dt  (rad/s)
+// - restDists[i]   = sum of angular(pose_i, pose_0) across STROKE_BONES (rad)
+function computeMotionProfile(clip) {
+  const dur = clip.duration;
+  if (!isFinite(dur) || dur <= 0) return null;
+
+  const tracks = [];
+  for (const track of clip.tracks) {
+    if (!(track instanceof THREE.QuaternionKeyframeTrack)) continue;
+    const dot = track.name.lastIndexOf('.');
+    if (dot < 0) continue;
+    const bone = track.name.slice(0, dot);
+    if (STROKE_BONES.indexOf(bone) < 0) continue;
+    if (track.values.length < 4) continue;
+    tracks.push(track);
+  }
+  if (tracks.length === 0) return null;
+
+  const N = STROKE_SAMPLE_N;
+  const dt = dur / (N - 1);
+  const times = new Float32Array(N);
+  for (let i = 0; i < N; i++) times[i] = i * dt;
+
+  const deltas = new Float32Array(N - 1);
+  const restDists = new Float32Array(N);  // restDists[0] = 0 by construction
+
+  for (const track of tracks) {
+    const restQ = sampleQuaternionAt(track, 0);
+    let prev = restQ;
+    for (let i = 1; i < N; i++) {
+      const t = times[i];
+      const cur = sampleQuaternionAt(track, t);
+      // Step angular delta
+      const dStep = Math.min(1, Math.abs(prev.dot(cur)));
+      deltas[i - 1] += 2 * Math.acos(dStep);
+      // Distance from rest pose (this bone's t=0 quaternion)
+      const dRest = Math.min(1, Math.abs(restQ.dot(cur)));
+      restDists[i] += 2 * Math.acos(dRest);
+      prev = cur;
+    }
+  }
+
+  const cumulative = new Float32Array(N);
+  cumulative[0] = 0;
+  let total = 0;
+  for (let i = 0; i < N - 1; i++) {
+    total += deltas[i];
+    cumulative[i + 1] = total;
+  }
+  const velocities = new Float32Array(N - 1);
+  for (let i = 0; i < N - 1; i++) velocities[i] = deltas[i] / dt;
+
+  let peakVel = 0, peakIdx = 0;
+  for (let i = 0; i < velocities.length; i++) {
+    if (velocities[i] > peakVel) { peakVel = velocities[i]; peakIdx = i; }
+  }
+  let maxRestDist = 0;
+  for (let i = 0; i < N; i++) {
+    if (restDists[i] > maxRestDist) maxRestDist = restDists[i];
+  }
+
+  return { dur, N, dt, times, deltas, cumulative, velocities, restDists,
+           total, peakVel, peakIdx, maxRestDist };
+}
+
+// ============================================================================
+// Method A — Cumulative % (sentence/index.html:443-522 로직 포팅)
+// stroke = [headPct% 누적 시점, (1-tailPct%) 누적 시점] + padding
+// 안전망: MIN_STROKE_RATIO * duration 미만이면 중심 기준 확장
+// ============================================================================
+function methodA(profile, headRatio, tailRatio) {
+  if (!profile) return null;
+  const { dur, dt, deltas, total } = profile;
+  if (total === 0) return { strokeStart: 0, strokeEnd: dur, clampTriggered: false };
+
+  const headLimit = total * headRatio;
+  const tailLimit = total * (1 - tailRatio);
+  let cum = 0;
+  let headIdx = 0, tailIdx = deltas.length - 1;
+  let fh = false, ft = false;
+  for (let i = 0; i < deltas.length; i++) {
+    cum += deltas[i];
+    if (!fh && cum >= headLimit) { headIdx = i; fh = true; }
+    if (!ft && cum >= tailLimit) { tailIdx = i; ft = true; }
+  }
+  let s = headIdx * dt + STROKE_PAD_HEAD;
+  let e = (tailIdx + 1) * dt - STROKE_PAD_TAIL;
+  if (s < 0) s = 0;
+  if (e > dur) e = dur;
+  if (e <= s) { s = 0; e = dur; }
+
+  let clampTriggered = false;
+  const minLen = dur * MIN_STROKE_RATIO;
+  if (e - s < minLen) {
+    clampTriggered = true;
+    const center = (s + e) / 2;
+    s = Math.max(0, center - minLen / 2);
+    e = Math.min(dur, s + minLen);
+    if (e - s < minLen) s = Math.max(0, e - minLen);
+  }
+  return { strokeStart: s, strokeEnd: e, clampTriggered };
+}
+
+// ============================================================================
+// Method B — Peak-hold window
+// stroke = velocity ≥ peakVel × thresholdPct% 인 first/last sample 구간
+// 첫 피크가 도달한 뒤부터 "hold" 끝나는 지점까지 자연스럽게 포함.
+// ============================================================================
+function methodB(profile, thresholdPct) {
+  if (!profile) return null;
+  const { dur, dt, velocities, peakVel } = profile;
+  if (peakVel === 0) return { strokeStart: 0, strokeEnd: dur, clampTriggered: false };
+  const thresh = peakVel * (thresholdPct / 100);
+  let first = -1, last = -1;
+  for (let i = 0; i < velocities.length; i++) {
+    if (velocities[i] >= thresh) {
+      if (first < 0) first = i;
+      last = i;
+    }
+  }
+  if (first < 0) return { strokeStart: 0, strokeEnd: dur, clampTriggered: false };
+  return {
+    strokeStart: Math.max(0, first * dt),
+    strokeEnd:   Math.min(dur, (last + 1) * dt),
+    clampTriggered: false,
+  };
+}
+
+// ============================================================================
+// Method C — Rest-pose distance (asymmetric: prep trim + hold plateau)
+// "팔이 차렷(t=0 pose)에서 얼마나 벗어나 있는가"로 stroke 경계 추정.
+// Rest 정의: 클립의 첫 프레임 (VLibras 클립은 차렷에서 시작한다고 가정).
+//
+// Asymmetric detection:
+//   - strokeStart: peak 왼쪽으로 스캔, restDist < restPct% 지점의 바로 다음
+//                  (prep 상승 구간 배제)
+//   - strokeEnd:   peak 오른쪽으로 스캔, restDist < PLATEAU% 이하로 처음
+//                  떨어지는 지점 바로 앞 (hold plateau 유지되는 마지막 지점)
+//                  PLATEAU는 maxRestDist의 90% 고정 → recovery 시작 직전
+//
+// 수어학적으로: prep → stroke/hold → recovery 구조에서 stroke는 hold가
+// 끝나는 시점에 종료해야 한다. 단순히 "rest에서 멀리 있음"이 아니라
+// "peak 근처에 유지됨"을 기준으로 하면 completedly 내려가기 전에 잘라낼 수 있다.
+// ============================================================================
+const PLATEAU_RATIO = 0.90;   // hold 판정: peak의 90% 이상 유지 시 hold로 간주
+
+function methodC(profile, restPct) {
+  if (!profile) return null;
+  const { dur, dt, N, restDists, maxRestDist } = profile;
+  if (maxRestDist === 0) return { strokeStart: 0, strokeEnd: dur, clampTriggered: false };
+  const startThresh = maxRestDist * (restPct / 100);
+  const plateauThresh = maxRestDist * PLATEAU_RATIO;
+
+  // 1) Locate the peak (first index reaching maxRestDist)
+  let peakIdx = 0;
+  for (let i = 0; i < N; i++) {
+    if (restDists[i] >= maxRestDist - 1e-6) { peakIdx = i; break; }
+  }
+
+  // 2) strokeStart: left scan from peak using slider threshold (prep 배제)
+  let startIdx = 0;
+  for (let i = peakIdx; i >= 0; i--) {
+    if (restDists[i] < startThresh) { startIdx = i + 1; break; }
+    if (i === 0) startIdx = 0;
+  }
+
+  // 3) strokeEnd: right scan from peak using PLATEAU_RATIO
+  // restDist가 peak의 90% 아래로 처음 떨어지는 지점 = recovery 시작
+  let endIdx = N - 1;
+  for (let i = peakIdx; i < N; i++) {
+    if (restDists[i] < plateauThresh) { endIdx = i - 1; break; }
+    if (i === N - 1) endIdx = N - 1;
+  }
+
+  if (endIdx < startIdx) endIdx = startIdx;
+
+  return {
+    strokeStart: Math.max(0, startIdx * dt),
+    strokeEnd:   Math.min(dur, endIdx * dt),
+    clampTriggered: false,
+  };
+}
+
+// ============================================================================
+// Method D — Peak drop (peak-centered)
+// Peak 기준 좌우로 스캔, velocity가 peakVel × (1 - dropPct%) 이하로 처음 떨어지는
+// 지점을 stroke 경계로 잡는다. Peak에서 30% drop = peak의 70%.
+// B와 달리 peak 주변에만 국한되므로 단일 액션의 "핵심" 추출에 적합.
+// ============================================================================
+function methodD(profile, dropPct) {
+  if (!profile) return null;
+  const { dur, dt, velocities, peakVel, peakIdx } = profile;
+  if (peakVel === 0) return { strokeStart: 0, strokeEnd: dur, clampTriggered: false };
+  const thresh = peakVel * (1 - dropPct / 100);
+  let startIdx = 0;
+  for (let i = peakIdx; i >= 0; i--) {
+    if (velocities[i] < thresh) { startIdx = i + 1; break; }
+    if (i === 0) startIdx = 0;
+  }
+  let endIdx = velocities.length - 1;
+  for (let i = peakIdx; i < velocities.length; i++) {
+    if (velocities[i] < thresh) { endIdx = i - 1; break; }
+    if (i === velocities.length - 1) endIdx = velocities.length - 1;
+  }
+  if (endIdx < startIdx) { startIdx = peakIdx; endIdx = peakIdx; }
+  return {
+    strokeStart: Math.max(0, startIdx * dt),
+    strokeEnd:   Math.min(dur, (endIdx + 1) * dt),
+    clampTriggered: false,
+  };
+}
+
+function computeMethod(name) {
+  if (!currentProfile) return null;
+  const p = methodParams[name];
+  if (name === 'A') return methodA(currentProfile, p.headPct / 100, p.tailPct / 100);
+  if (name === 'B') return methodB(currentProfile, p.thresholdPct);
+  if (name === 'C') return methodC(currentProfile, p.restPct);
+  if (name === 'D') return methodD(currentProfile, p.dropPct);
+  return null;
+}
+
+function recomputeAllMethods() {
+  if (!currentProfile) return;
+  for (const m of ['A', 'B', 'C', 'D']) {
+    currentMethodResults[m] = computeMethod(m);
+  }
+  updateMethodRows();
+}
+
+function updateMethodRows() {
+  for (const m of ['A', 'B', 'C', 'D']) {
+    const row = document.querySelector(`.method-row[data-method="${m}"]`);
+    if (!row) continue;
+    const resultEl = row.querySelector('.method-result');
+    const r = currentMethodResults[m];
+    if (r && currentProfile) {
+      const ratio = ((r.strokeEnd - r.strokeStart) / currentProfile.dur * 100).toFixed(1);
+      const clampBadge = r.clampTriggered ? ' ⚠' : '';
+      resultEl.innerHTML = `[${r.strokeStart.toFixed(3)}, ${r.strokeEnd.toFixed(3)}]${clampBadge}<span class="ratio">${ratio}%</span>`;
+    } else {
+      resultEl.textContent = '-';
+    }
+    row.classList.toggle('active', m === activeMethod);
+  }
+}
+
+function applyActiveMethod() {
+  const r = currentMethodResults[activeMethod];
+  if (!r) return;
+  currentStrokeStart = r.strokeStart;
+  currentStrokeEnd = r.strokeEnd;
+  currentClamp = !!r.clampTriggered;
+  if (infoActiveMethodEl) infoActiveMethodEl.textContent = activeMethod;
+  updateInfoPanel();
+  updateStrokeBar();
+  applyPlaybackMode();
+}
+
+// ============================================================================
+// SVG chart renderer
+// ============================================================================
+const CHART_W = 496, CHART_H = 180;
+const CHART_PAD = { L: 30, R: 10, T: 10, B: 24 };
+const PLOT_W = CHART_W - CHART_PAD.L - CHART_PAD.R;
+const PLOT_H = CHART_H - CHART_PAD.T - CHART_PAD.B;
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function svgElem(tag, attrs) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const k in attrs) el.setAttribute(k, attrs[k]);
+  return el;
+}
+
+function renderChart() {
+  chartEl.textContent = '';
+  if (!currentProfile) return;
+  const p = currentProfile;
+
+  const xAt = (t) => CHART_PAD.L + (t / p.dur) * PLOT_W;
+  // Primary Y: velocity (0..peakVel) → plotH..0
+  const yVel = (v) => {
+    if (p.peakVel === 0) return CHART_PAD.T + PLOT_H;
+    return CHART_PAD.T + PLOT_H - (v / p.peakVel) * PLOT_H;
+  };
+  // Secondary: cumulative (0..total) normalized independently
+  const yCum = (c) => {
+    if (p.total === 0) return CHART_PAD.T + PLOT_H;
+    return CHART_PAD.T + PLOT_H - (c / p.total) * PLOT_H;
+  };
+  // Rest distance normalized by max
+  const yRest = (r) => {
+    if (p.maxRestDist === 0) return CHART_PAD.T + PLOT_H;
+    return CHART_PAD.T + PLOT_H - (r / p.maxRestDist) * PLOT_H;
+  };
+
+  // Background plot area
+  chartEl.appendChild(svgElem('rect', {
+    x: CHART_PAD.L, y: CHART_PAD.T, width: PLOT_W, height: PLOT_H,
+    fill: 'rgba(255,255,255,0.02)', stroke: 'rgba(255,255,255,0.08)', 'stroke-width': '0.5'
+  }));
+
+  // Horizontal grid at 25/50/75%
+  for (const pct of [0.25, 0.5, 0.75]) {
+    const y = CHART_PAD.T + PLOT_H * pct;
+    chartEl.appendChild(svgElem('line', {
+      x1: CHART_PAD.L, y1: y, x2: CHART_PAD.L + PLOT_W, y2: y,
+      stroke: 'rgba(255,255,255,0.05)', 'stroke-width': '0.5'
+    }));
+  }
+
+  // Velocity line (center of each interval)
+  let velD = '';
+  for (let i = 0; i < p.velocities.length; i++) {
+    const t = (i + 0.5) * p.dt;
+    const x = xAt(t).toFixed(1), y = yVel(p.velocities[i]).toFixed(1);
+    velD += (i === 0 ? 'M' : 'L') + x + ',' + y + ' ';
+  }
+  chartEl.appendChild(svgElem('path', {
+    d: velD, fill: 'none', stroke: '#4361ee', 'stroke-width': '1.8'
+  }));
+
+  // Cumulative line (dashed)
+  let cumD = '';
+  for (let i = 0; i < p.N; i++) {
+    const t = i * p.dt;
+    const x = xAt(t).toFixed(1), y = yCum(p.cumulative[i]).toFixed(1);
+    cumD += (i === 0 ? 'M' : 'L') + x + ',' + y + ' ';
+  }
+  chartEl.appendChild(svgElem('path', {
+    d: cumD, fill: 'none', stroke: '#888', 'stroke-width': '1', 'stroke-dasharray': '3,3'
+  }));
+
+  // Rest distance line
+  let restD = '';
+  for (let i = 0; i < p.N; i++) {
+    const t = i * p.dt;
+    const x = xAt(t).toFixed(1), y = yRest(p.restDists[i]).toFixed(1);
+    restD += (i === 0 ? 'M' : 'L') + x + ',' + y + ' ';
+  }
+  chartEl.appendChild(svgElem('path', {
+    d: restD, fill: 'none', stroke: '#ff9c47', 'stroke-width': '1.5', opacity: '0.9'
+  }));
+
+  // Peak marker
+  const peakT = (p.peakIdx + 0.5) * p.dt;
+  chartEl.appendChild(svgElem('circle', {
+    cx: xAt(peakT).toFixed(1), cy: yVel(p.peakVel).toFixed(1),
+    r: '2.5', fill: '#4361ee'
+  }));
+
+  // X axis
+  chartEl.appendChild(svgElem('line', {
+    x1: CHART_PAD.L, y1: CHART_PAD.T + PLOT_H,
+    x2: CHART_PAD.L + PLOT_W, y2: CHART_PAD.T + PLOT_H,
+    stroke: 'rgba(255,255,255,0.3)', 'stroke-width': '0.5'
+  }));
+  // Axis labels
+  const tx1 = svgElem('text', {
+    x: CHART_PAD.L, y: CHART_H - 8, fill: '#888', 'font-size': '9'
+  });
+  tx1.textContent = '0s';
+  chartEl.appendChild(tx1);
+  const tx2 = svgElem('text', {
+    x: CHART_PAD.L + PLOT_W - 24, y: CHART_H - 8, fill: '#888', 'font-size': '9'
+  });
+  tx2.textContent = p.dur.toFixed(2) + 's';
+  chartEl.appendChild(tx2);
+
+  // Peak label
+  const pl = svgElem('text', {
+    x: CHART_PAD.L + 2, y: CHART_PAD.T + 10, fill: '#888', 'font-size': '9'
+  });
+  pl.textContent = `peak ${p.peakVel.toFixed(2)} rad/s`;
+  chartEl.appendChild(pl);
+
+  // Method vertical lines (stroke boundaries)
+  const yTop = CHART_PAD.T;
+  const yBot = CHART_PAD.T + PLOT_H;
+  const methodStagger = { A: -8, B: -2, C: 4, D: 10 };  // label y offset inside plot
+  for (const m of ['A', 'B', 'C', 'D']) {
+    const r = currentMethodResults[m];
+    if (!r) continue;
+    const col = METHOD_COLORS[m];
+    const isActive = (m === activeMethod);
+    const sw = isActive ? '2' : '1.2';
+    const opacity = isActive ? '0.95' : '0.55';
+    const dash = isActive ? '' : '4,3';
+    const x1 = xAt(r.strokeStart).toFixed(1);
+    const x2 = xAt(r.strokeEnd).toFixed(1);
+    chartEl.appendChild(svgElem('line', {
+      x1: x1, y1: yTop, x2: x1, y2: yBot,
+      stroke: col, 'stroke-width': sw, 'stroke-dasharray': dash, opacity
+    }));
+    chartEl.appendChild(svgElem('line', {
+      x1: x2, y1: yTop, x2: x2, y2: yBot,
+      stroke: col, 'stroke-width': sw, 'stroke-dasharray': dash, opacity
+    }));
+    const lbl1 = svgElem('text', {
+      x: x1, y: yTop + 18 + methodStagger[m], fill: col, 'font-size': '9', 'font-weight': '700'
+    });
+    lbl1.textContent = m;
+    chartEl.appendChild(lbl1);
+  }
+
+  // Active method shaded region
+  const active = currentMethodResults[activeMethod];
+  if (active) {
+    const rx = xAt(active.strokeStart).toFixed(1);
+    const rw = (xAt(active.strokeEnd) - xAt(active.strokeStart)).toFixed(1);
+    chartEl.appendChild(svgElem('rect', {
+      x: rx, y: yTop, width: rw, height: PLOT_H,
+      fill: METHOD_COLORS[activeMethod], opacity: '0.08'
+    }));
+  }
+
+  // Playback cursor (will be updated each frame via updateChartCursor)
+  const cursor = svgElem('line', {
+    id: 'chart-cursor',
+    x1: CHART_PAD.L, y1: yTop, x2: CHART_PAD.L, y2: yBot,
+    stroke: '#ffcc33', 'stroke-width': '1.5', opacity: '0.9'
+  });
+  chartEl.appendChild(cursor);
+}
+
+function updateChartCursor() {
+  if (!currentProfile || !currentAction) return;
+  const cursor = chartEl.querySelector('#chart-cursor');
+  if (!cursor) return;
+  const x = (CHART_PAD.L + (currentAction.time / currentProfile.dur) * PLOT_W).toFixed(1);
+  cursor.setAttribute('x1', x);
+  cursor.setAttribute('x2', x);
+}
+
+// --- Model load ---
+async function loadModel(name) {
+  loadingEl.classList.remove('hidden');
+
+  if (mixer) {
+    mixer.stopAllAction();
+    if (currentModel) { try { mixer.uncacheRoot(currentModel); } catch (_) {} }
+    mixer = null;
+  }
+  currentAction = null;
+
+  if (currentModel) {
+    scene.remove(currentModel);
+    currentModel.traverse(child => {
+      if (child.isMesh) {
+        child.geometry.dispose();
+        (Array.isArray(child.material) ? child.material : [child.material]).forEach(m => m && m.dispose());
+      }
+    });
+  }
+
+  const gltf = await new Promise((resolve, reject) => {
+    loader.load(MODELS[name], resolve, undefined, reject);
+  });
+  const model = gltf.scene;
+
+  const toRemove = [];
+  model.traverse(child => {
+    if (EXCLUDE_NAMES.some(ex => child.name.includes(ex))) toRemove.push(child);
+  });
+  toRemove.forEach(obj => {
+    if (obj.isMesh) {
+      obj.geometry.dispose();
+      (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach(m => m && m.dispose());
+    }
+    obj.removeFromParent();
+  });
+
+  scene.add(model);
+  currentModel = model;
+
+  const box = new THREE.Box3().setFromObject(model);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  model.position.sub(new THREE.Vector3(center.x, box.min.y, center.z));
+  controls.target.set(0, size.y * 0.45, 0);
+  camera.position.set(0, size.y * 0.5, size.y * 1.8);
+  controls.update();
+
+  infoModelEl.textContent = name;
+  document.querySelectorAll('.model-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.model === name);
+  });
+
+  if (currentClip) {
+    mixer = new THREE.AnimationMixer(currentModel);
+    currentAction = mixer.clipAction(currentClip);
+    currentAction.setLoop(THREE.LoopRepeat);
+    currentAction.enabled = true;
+    currentAction.play();
+    applyPlaybackMode();
+    isPlaying = true;
+    clock.getDelta();
+  }
+
+  loadingEl.classList.add('hidden');
+}
+
+// --- Load a single word's bundle and bind to current model ---
+async function loadWordClip(word) {
+  if (!word || !word.trim()) { showError('단어를 입력하세요'); return false; }
+  if (!bundleIndex) { showError('번들 인덱스가 아직 로드되지 않았습니다'); return false; }
+  if (!currentModel) { showError('아바타 모델이 아직 로드되지 않았습니다'); return false; }
+
+  const key = asciiKey(word.trim());
+  const entry = bundleIndex.glosses.find(g => g.key === key);
+  if (!entry) {
+    const sample = bundleIndex.glosses.slice(0, 8).map(g => g.key).join(', ');
+    showError(`'${word}' 미매칭 (전체 ${bundleIndex.count}개, 예: ${sample}...)`);
+    return false;
+  }
+
+  try {
+    const resp = await fetch(BUNDLE_BASE + entry.file, { cache: 'no-store' });
+    if (!resp.ok) throw new Error(`Clip fetch failed: ${resp.status}`);
+    const data = await resp.json();
+    const clip = buildClipFromJson(data);
+    const profile = computeMotionProfile(clip);
+
+    if (mixer) {
+      mixer.stopAllAction();
+      try { mixer.uncacheRoot(currentModel); } catch (_) {}
+      if (currentClip) { try { mixer.uncacheClip(currentClip); } catch (_) {} }
+    }
+
+    currentClip = clip;
+    currentDuration = clip.duration;
+    currentRaw = entry.raw;
+    currentProfile = profile;
+
+    recomputeAllMethods();
+
+    mixer = new THREE.AnimationMixer(currentModel);
+    currentAction = mixer.clipAction(currentClip);
+    currentAction.setLoop(THREE.LoopRepeat);
+    currentAction.enabled = true;
+    currentAction.play();
+
+    applyActiveMethod();
+    renderChart();
+
+    isPlaying = true;
+    clock.getDelta();
+
+    // Per-method console summary
+    const parts = ['A', 'B', 'C', 'D'].map(m => {
+      const r = currentMethodResults[m];
+      if (!r) return `${m}:-`;
+      return `${m}[${r.strokeStart.toFixed(3)}→${r.strokeEnd.toFixed(3)}]`;
+    });
+    console.log(
+      `[stroke-test] ${entry.raw} dur=${currentDuration.toFixed(3)}s ` +
+      `peak=${profile.peakVel.toFixed(2)}rad/s ${parts.join(' ')}`
+    );
+    return true;
+  } catch (e) {
+    showError(`로드 실패: ${e.message}`);
+    return false;
+  }
+}
+
+// --- UI updates ---
+function updateInfoPanel() {
+  if (!currentClip) return;
+  infoWordEl.textContent = `${currentRaw} (${asciiKey(currentRaw)})`;
+  const frames = Math.round(currentDuration * 30);
+  infoDurEl.textContent = `${currentDuration.toFixed(3)}s (${frames} frames @ 30fps)`;
+  infoStrokeEl.textContent = `${currentStrokeStart.toFixed(3)}s → ${currentStrokeEnd.toFixed(3)}s`;
+  const fStart = Math.round(currentStrokeStart * 30);
+  const fEnd = Math.round(currentStrokeEnd * 30);
+  infoStrokeFramesEl.textContent = `${fStart} → ${fEnd}`;
+  const ratio = ((currentStrokeEnd - currentStrokeStart) / currentDuration * 100).toFixed(1);
+  infoRatioEl.textContent = `${ratio}%`;
+  infoClampEl.textContent = currentClamp ? 'yes (safety-net)' : 'no';
+  infoClampEl.style.color = currentClamp ? '#ff9c47' : '#8fe8a0';
+  infoModeEl.textContent = (mode === 'stroke') ? 'Stroke only' : 'Full';
+}
+
+function updateStrokeBar() {
+  if (!currentClip || currentDuration <= 0) {
+    strokeHighlightEl.style.left = '0%';
+    strokeHighlightEl.style.width = '0%';
+    return;
+  }
+  const leftPct = (currentStrokeStart / currentDuration * 100);
+  const widthPct = ((currentStrokeEnd - currentStrokeStart) / currentDuration * 100);
+  strokeHighlightEl.style.left = leftPct + '%';
+  strokeHighlightEl.style.width = widthPct + '%';
+}
+
+function updateStrokeCursor() {
+  if (!currentAction || currentDuration <= 0) {
+    strokeCursorEl.style.left = '0%';
+    return;
+  }
+  const pct = Math.min(100, Math.max(0, currentAction.time / currentDuration * 100));
+  strokeCursorEl.style.left = pct + '%';
+}
+
+function updateTimeline() {
+  if (!currentAction || currentDuration <= 0) {
+    timelineEl.value = 0;
+    timeDisplayEl.textContent = `0.000 / 0.000s`;
+    return;
+  }
+  timelineEl.value = (currentAction.time / currentDuration) * 1000;
+  timeDisplayEl.textContent = `${currentAction.time.toFixed(3)} / ${currentDuration.toFixed(3)}s`;
+}
+
+function applyPlaybackMode() {
+  if (!currentAction) return;
+  if (mode === 'stroke') {
+    if (currentAction.time < currentStrokeStart || currentAction.time >= currentStrokeEnd) {
+      currentAction.time = currentStrokeStart;
+    }
+  }
+  if (mixer) mixer.update(0);
+  modeFullBtnEl.classList.toggle('active', mode === 'full');
+  modeStrokeBtnEl.classList.toggle('active', mode === 'stroke');
+  if (infoModeEl) infoModeEl.textContent = (mode === 'stroke') ? 'Stroke only' : 'Full';
+}
+
+function updateLoopButton() {
+  loopBtnEl.classList.toggle('active', isLooping);
+}
+
+// --- Batch: stroke-only playback with crossfade blending ---
+// 여러 clip을 같은 mixer에 action으로 바인딩 → 각 action은 strokeStart에서 시작 →
+// animate 루프가 strokeEnd 직전에 다음 action으로 crossFadeTo 호출.
+// 각 action은 자체 strokeEnd 도달 시 paused=true로 정지 (recovery 재생 방지).
+function runBatchSimBomDia() {
+  runBatch(['SIM', 'BOM', 'DIA'], 'Sim bom dia');
+}
+
+function runBatch(glosses, label) {
+  if (batchRunning) return;
+  _runBatch(glosses, label || glosses.join(' ')).catch(e => {
+    showError(`배치 실패: ${e.message}`);
+    endBatch();
+  });
+}
+
+// --- VLibras translate API → gloss list → batch playback ---
+async function translateSentence(text) {
+  const resp = await fetch(TRANSLATE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!resp.ok) throw new Error(`Translate failed: ${resp.status}`);
+  const raw = (await resp.text()).trim();
+  return raw ? raw.split(/\s+/).filter(Boolean) : [];
+}
+
+async function onTranslateAndBatch() {
+  if (batchRunning) return;
+  const text = sentenceInputEl.value.trim();
+  if (!text) { showError('문장을 입력하세요'); return; }
+  translateBtnEl.disabled = true;
+  try {
+    console.log(`[stroke-test] translating: "${text}"`);
+    const glosses = await translateSentence(text);
+    if (glosses.length === 0) {
+      showError('번역 결과가 비어 있습니다');
+      translateBtnEl.disabled = false;
+      return;
+    }
+    console.log(`[stroke-test] translated → ${glosses.join(' ')}`);
+    runBatch(glosses, text);
+  } catch (e) {
+    showError(`번역 실패: ${e.message}`);
+    translateBtnEl.disabled = false;
+  }
+}
+
+async function _runBatch(words, label) {
+  batchRunning = true;
+  batchBtnEl.disabled = true;
+  loadBtnEl.disabled = true;
+  translateBtnEl.disabled = true;
+  mode = 'stroke';
+  applyPlaybackMode();
+
+  // 1) Fetch all clips in parallel, then build items with active-method stroke ranges
+  const missing = [];
+  const fetchResults = await Promise.all(words.map(async (w) => {
+    const key = asciiKey(w);
+    const entry = bundleIndex.glosses.find(g => g.key === key);
+    if (!entry) { missing.push(w); return null; }
+    try {
+      const resp = await fetch(BUNDLE_BASE + entry.file, { cache: 'no-store' });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const clip = buildClipFromJson(data);
+      const profile = computeMotionProfile(clip);
+      const r = computeStrokeForMethod(profile, activeMethod);
+      if (!r || !profile) return null;
+      return {
+        raw: entry.raw,
+        clip,
+        duration: clip.duration,
+        strokeStart: r.strokeStart,
+        strokeEnd: r.strokeEnd,
+      };
+    } catch (e) {
+      console.error(`[stroke-test] ${w} fetch error:`, e);
+      return null;
+    }
+  }));
+  if (missing.length > 0) {
+    showError(`미매칭 단어 ${missing.length}개: ${missing.slice(0, 8).join(', ')}${missing.length > 8 ? '...' : ''}`);
+  }
+  const items = fetchResults.filter(Boolean);
+  if (items.length === 0) {
+    endBatch();
+    showError('재생 가능한 단어가 없습니다');
+    return;
+  }
+
+  // 2) Dispose single-clip mixer (we switch to batchMixer)
+  if (mixer) {
+    mixer.stopAllAction();
+    try { mixer.uncacheRoot(currentModel); } catch (_) {}
+    if (currentClip) { try { mixer.uncacheClip(currentClip); } catch (_) {} }
+    mixer = null;
+    currentAction = null;
+  }
+
+  // 3) Build batch mixer with all clips bound as independent actions
+  batchMixer = new THREE.AnimationMixer(currentModel);
+  batchMixer.timeScale = 1;
+  batchQueue = items.map((item, i) => {
+    const action = batchMixer.clipAction(item.clip);
+    action.setLoop(THREE.LoopOnce);
+    action.clampWhenFinished = true;
+    action.enabled = true;
+    return {
+      raw: item.raw,
+      clip: item.clip,
+      duration: item.duration,
+      strokeStart: item.strokeStart,
+      strokeEnd: item.strokeEnd,
+      action,
+      _fadeStarted: false,
+      nextFadeSec: (i < items.length - 1) ? BATCH_FADE_SEC : 0,
+    };
+  });
+
+  // 4) Advance is entirely animate-loop driven (see animate()). No finished
+  //    listener: it would be stale by the time it fires because crossfade
+  //    already moved us onto the next action.
+  batchOnFinished = null;
+
+  // 5) Prime and play the first action from its strokeStart
+  batchCurrentIdx = 0;
+  const first = batchQueue[0];
+  first.action.reset();
+  first.action.enabled = true;
+  first.action.setEffectiveWeight(1);
+  first.action.time = first.strokeStart;
+  first.action.play();
+  batchMixer.update(0);
+
+  batchMode = true;
+  isPlaying = true;
+  clock.getDelta();
+  infoWordEl.textContent = `${first.raw} (batch 1/${batchQueue.length})`;
+  console.log(
+    `[stroke-test] batch start "${label}" (method: ${activeMethod}, fade: ${(BATCH_FADE_SEC * 1000) | 0}ms) ` +
+    items.map(it => `${it.raw}[${it.strokeStart.toFixed(3)}→${it.strokeEnd.toFixed(3)}/${it.duration.toFixed(2)}s]`).join(' ')
+  );
+}
+
+function computeStrokeForMethod(profile, m) {
+  if (!profile) return null;
+  const p = methodParams[m];
+  if (m === 'A') return methodA(profile, p.headPct / 100, p.tailPct / 100);
+  if (m === 'B') return methodB(profile, p.thresholdPct);
+  if (m === 'C') return methodC(profile, p.restPct);
+  if (m === 'D') return methodD(profile, p.dropPct);
+  return null;
+}
+
+function endBatch() {
+  if (batchMixer && batchOnFinished) {
+    try { batchMixer.removeEventListener('finished', batchOnFinished); } catch (_) {}
+    batchOnFinished = null;
+  }
+  if (batchMixer) {
+    batchMixer.stopAllAction();
+    try { batchMixer.uncacheRoot(currentModel); } catch (_) {}
+    for (const q of batchQueue) {
+      if (q.clip) { try { batchMixer.uncacheClip(q.clip); } catch (_) {} }
+    }
+    batchMixer = null;
+  }
+  batchQueue = [];
+  batchCurrentIdx = 0;
+  batchMode = false;
+  batchRunning = false;
+  isPlaying = false;
+  batchBtnEl.disabled = false;
+  loadBtnEl.disabled = false;
+  if (translateBtnEl) translateBtnEl.disabled = false;
+  console.log('[stroke-test] batch end');
+}
+
+// --- Render loop ---
+function animate() {
+  requestAnimationFrame(animate);
+  // Cap per-tick delta to 100ms so tab throttling / large pauses don't skip past
+  // stroke boundaries or crossfade trigger points in a single step.
+  const delta = Math.min(clock.getDelta(), 0.1);
+
+  if (batchMode && batchMixer) {
+    // Batch crossfade playback. advance logic is entirely driven by strokeEnd
+    // detection here, NOT by 'finished' events. Relying on clip-duration
+    // finished would let middle clips play into their recovery phase while
+    // waiting for the previous clip to hit its duration.
+    batchMixer.update(delta);
+    const curr = batchQueue[batchCurrentIdx];
+    if (curr) {
+      // Crossfade trigger: when remaining time until strokeEnd drops below fade
+      if (!curr._fadeStarted && curr.nextFadeSec > 0 && batchCurrentIdx < batchQueue.length - 1) {
+        const timeLeft = curr.strokeEnd - curr.action.time;
+        if (timeLeft <= curr.nextFadeSec) {
+          const next = batchQueue[batchCurrentIdx + 1];
+          next.action.reset();
+          next.action.enabled = true;
+          next.action.setEffectiveWeight(1);
+          next.action.time = next.strokeStart;
+          next.action.play();
+          curr.action.crossFadeTo(next.action, curr.nextFadeSec, false);
+          curr._fadeStarted = true;
+        }
+      }
+      // Manual advance at strokeEnd. Pausing the action freezes its time so
+      // no further recovery frames are rendered; the crossfade weight schedule
+      // continues through mixer.update regardless of paused state.
+      if (curr.action.time >= curr.strokeEnd - 1e-4) {
+        curr.action.paused = true;
+        if (batchCurrentIdx < batchQueue.length - 1) {
+          batchCurrentIdx += 1;
+          const nxt = batchQueue[batchCurrentIdx];
+          infoWordEl.textContent = `${nxt.raw} (batch ${batchCurrentIdx + 1}/${batchQueue.length})`;
+          console.log(`[stroke-test] batch advance → ${nxt.raw} @ ${nxt.action.time.toFixed(3)}s`);
+        } else {
+          endBatch();
+        }
+      }
+    }
+  } else if (mixer && isPlaying && currentAction) {
+    mixer.update(delta);
+    const limit = (mode === 'stroke') ? currentStrokeEnd : currentDuration;
+    const floor = (mode === 'stroke') ? currentStrokeStart : 0;
+    if (currentAction.time >= limit - 1e-4) {
+      if (isLooping) {
+        currentAction.time = floor;
+        mixer.update(0);
+      } else {
+        currentAction.paused = true;
+        isPlaying = false;
+        currentAction.time = limit;
+      }
+    }
+    updateStrokeCursor();
+    updateChartCursor();
+    updateTimeline();
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// --- Handlers ---
+loadBtnEl.addEventListener('click', () => { loadWordClip(wordInputEl.value); });
+wordInputEl.addEventListener('keydown', (e) => {
+  if (e.code === 'Enter') { e.preventDefault(); loadWordClip(wordInputEl.value); }
+});
+batchBtnEl.addEventListener('click', runBatchSimBomDia);
+translateBtnEl.addEventListener('click', onTranslateAndBatch);
+sentenceInputEl.addEventListener('keydown', (e) => {
+  if (e.code === 'Enter') { e.preventDefault(); onTranslateAndBatch(); }
+});
+
+modeFullBtnEl.addEventListener('click', () => { mode = 'full'; applyPlaybackMode(); });
+modeStrokeBtnEl.addEventListener('click', () => { mode = 'stroke'; applyPlaybackMode(); });
+
+loopBtnEl.addEventListener('click', () => { isLooping = !isLooping; updateLoopButton(); });
+
+playBtnEl.addEventListener('click', () => {
+  if (!currentAction) return;
+  if (mode === 'stroke' && currentAction.time >= currentStrokeEnd - 1e-4) {
+    currentAction.time = currentStrokeStart;
+  } else if (mode === 'full' && currentAction.time >= currentDuration - 1e-4) {
+    currentAction.time = 0;
+  }
+  currentAction.paused = false;
+  isPlaying = true;
+  clock.getDelta();
+});
+pauseBtnEl.addEventListener('click', () => {
+  if (currentAction) currentAction.paused = true;
+  isPlaying = false;
+});
+stopBtnEl.addEventListener('click', () => {
+  if (!currentAction) return;
+  currentAction.paused = true;
+  currentAction.time = (mode === 'stroke') ? currentStrokeStart : 0;
+  if (mixer) mixer.update(0);
+  isPlaying = false;
+  updateStrokeCursor();
+  updateChartCursor();
+  updateTimeline();
+});
+
+document.querySelectorAll('.model-btn').forEach(btn => {
+  btn.addEventListener('click', () => loadModel(btn.dataset.model));
+});
+
+errorCloseBtnEl.addEventListener('click', hideError);
+
+// Slider handlers (per-method parameter adjustment)
+document.querySelectorAll('#compare-panel .slider').forEach(slider => {
+  slider.addEventListener('input', (e) => {
+    const row = e.target.closest('.method-row');
+    if (!row) return;
+    const m = row.dataset.method;
+    const param = e.target.dataset.param;
+    const raw = parseFloat(e.target.value);
+    methodParams[m][param] = raw;
+    const valEl = e.target.parentElement.querySelector('.slider-val');
+    valEl.textContent = `${raw.toFixed(0)}%`;
+    currentMethodResults[m] = computeMethod(m);
+    updateMethodRows();
+    renderChart();
+    if (m === activeMethod) applyActiveMethod();
+  });
+});
+
+// Active method radio
+document.querySelectorAll('input[name="active-method"]').forEach(radio => {
+  radio.addEventListener('change', (e) => {
+    if (e.target.checked) {
+      activeMethod = e.target.value;
+      applyActiveMethod();
+      updateMethodRows();
+      renderChart();
+    }
+  });
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// --- Debug hook for external test harnesses (exposes live batch state) ---
+window.__strokeTest = {
+  getBatchState: () => ({
+    batchMode,
+    batchCurrentIdx,
+    activeMethod,
+    queue: batchQueue.map(q => ({
+      raw: q.raw,
+      time: q.action ? q.action.time : null,
+      paused: q.action ? q.action.paused : null,
+      weight: q.action ? q.action.getEffectiveWeight() : null,
+      fadeStarted: q._fadeStarted,
+      strokeStart: q.strokeStart,
+      strokeEnd: q.strokeEnd,
+      duration: q.duration,
+    })),
+  }),
+};
+
+// --- Init ---
+try {
+  await loadBundleIndex();
+  console.log(`[stroke-test] bundle index loaded: ${bundleIndex.count} glosses`);
+  await loadModel('padrao_tex');
+  requestAnimationFrame(animate);
+  wordInputEl.focus();
+} catch (e) {
+  showError(`초기화 실패: ${e.message}`);
+  loadingEl.classList.add('hidden');
+}
+</script>
+</body>
+</html>

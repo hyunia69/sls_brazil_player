@@ -20,6 +20,9 @@
 | VLibras Player v3 | 🔄 상체 완료, 하체 미완 | `public/players/vlibras-v3/` |
 | **Sentence Player (P1)** | ✅ 완료 | `public/players/sentence/` |
 | **Sentence Player ↔ VLibras 공식 위젯 sync** | ✅ 완료 (2026-04-14) | `public/players/sentence/index.html` (`#vlibras-toggle` + `syncToVLibrasPlugin`) |
+| **Sentence Player 동적 모션 블렌딩 (P5 Phase A)** | ✅ 완료 (2026-04-14) | `public/players/sentence/index.html` (`computeTransitionDuration`, `BONE_WEIGHTS`) |
+| **Sentence Player Stroke Trim (P5.1)** | ✅ 완료 (2026-04-14) | `public/players/sentence/index.html` (`computeStrokeRange`, `extractPoseAt`, `effectiveStart/End`, `STROKE_*`) |
+| **Stroke Verification Tool** | ✅ 완료 (2026-04-15) | `public/players/sentence-stroke-test/index.html` (4-method 비교 + motion profile 차트 + 배치 crossfade) |
 | **Bundle 사전 변환기** | ✅ 완료 (27 글로스) | `tools/vlibras2slmb/batch/precompute_threejs.py` |
 | Model Viewer | ✅ 완료 | `public/players/viewer/` |
 | VLibras→SLMB 변환기 | 🔄 매핑 완료, 파이프라인 미완 | `tools/vlibras2slmb/` |
@@ -50,19 +53,28 @@
 - **문제**: M4 MVP에서 timeline slider `disabled=true`
 - **구현**: 글로벌 시간 → 로컬 클립 시간 역산, 이전 클립 `stop()`/`uncacheAction()`, 목표 클립 `action.time` 설정, `mixer.update(0)`으로 포즈 반영
 
-### P5: 모션 블렌딩 — 글로스 간 자연스러운 연결
-- **목표**: 수어문의 글로스 시퀀스(예: `EU BEBER AGUA`)가 현재는 고정 `CROSSFADE_SEC=0.2s`의 단순 fade로만 이어지는데, 글로스 경계에서 손목·팔꿈치·어깨 관절이 튀는 현상을 개선해 실제 수어와 유사한 연속 동작을 만든다.
-- **현재 한계**:
-  - `public/players/sentence/index.html`의 `playQueue()`가 `mixer.crossFadeTo(next, 0.2, true)` 호출만으로 전환 — 두 클립의 시작/끝 포즈 간 위치 차이가 크면 "워프" 효과 발생
-  - crossfade는 quaternion SLERP 기반이라 긴 거리 이동 시 직선 보간이 돼 실제 손 궤적과 맞지 않음
-  - 글로스 간 휴지(idle gap) 포즈가 없어서 의미 경계가 흐려짐
-- **접근 후보**:
-  1. **동적 crossfade 길이**: 두 클립 경계의 관절 delta에 비례해 전환 시간 조정 (delta 크면 longer, 작으면 shorter)
-  2. **Transition 구간 생성**: 글로스 끝 포즈 → neutral rest pose → 다음 글로스 시작 포즈 3-segment bridging
-  3. **IK-based 손 궤적 보정**: 손목 위치를 Cubic Bezier/Catmull-Rom으로 보간하면서 팔꿈치는 2-bone IK로 역산
-  4. **Anticipation/overshoot easing**: 글로스 시작 직전 anticipation(역방향 미세 이동), 끝 직후 overshoot로 실제 수어의 리듬 재현
-- **검증**: Playwright 영상 녹화 + VLibras 공식 위젯 비교 (같은 문장의 부드러움 상대 평가). 정량 metric은 손목 velocity profile의 평균 jerk 값.
-- **관련 파일**: `public/players/sentence/index.html:playQueue`, `rebuildActionsForCurrentModel`, `CROSSFADE_SEC` 상수
+### P5.2: Method C asymmetric을 sentence/index.html production에 적용 결정
+- **배경**: P5.1이 Method A(Cumulative 12%) 기반으로 출시됐으나 사용자가 BOM 배치 재생에서 "손이 차렷까지 내려간다"고 보고. `sentence-stroke-test`에서 4개 방법 비교 결과, Method C(asymmetric prep + hold plateau 90%)가 recovery를 확실히 배제함을 확인(BOM strokeEnd 1.597→1.190, SIM 3.062→2.478, DIA 2.055→1.364)
+- **결정 사항**: `sentence/index.html`의 `computeStrokeRange`를 Method C로 교체할지, 두 방법을 선택 가능하게 할지 판단. Method C의 PLATEAU_RATIO(0.90) 고정값을 노출할지 여부
+- **영향 범위**: `fetchClipFromEntry`가 startPose/endPose sample 시점에도 strokeStart/strokeEnd 사용 → boundary pose 측정값 변화 → `computeTransitionDuration` fade sec 재계산 → 기존 5케이스 회귀 결과(Sim bom dia 5.903s 등) 재측정 필요
+- **검증 방법**: 동일 문장을 sentence/index.html 기존 버전과 C 적용 버전으로 병렬 재생 → 시각 비교 + Playwright duration 측정 비교
+- **선행**: `sentence-stroke-test`에서 SIM/BOM/DIA 외 다양한 글로스(CASA, ESCOLA, AGUA, VOCE, AMIGO, TRABALHO 등)에 대해 Method C 결과 육안 검증
+
+### P5: 모션 블렌딩 — 글로스 간 자연스러운 연결 [✅ Phase A + P5.1 완료 (2026-04-14)]
+- **Phase A (출시)**: 글로스 경계 포즈 차이에 비례하는 동적 crossfade 길이. `computeTransitionDuration` + `BONE_WEIGHTS` 13개 본 가중 RMS 각거리, sqrt 곡선으로 [FADE_MIN 0.12s, FADE_MAX 0.45s] 매핑. `computeTotalDuration`과 `updateTimeline`도 가변 overlap 합산으로 재작성. Plan: `C:\Users\admin\.claude\plans\curried-shimmying-bengio.md`
+- **P5.1 Stroke Trim (출시)**: 클립이 prep(차렷→손) + stroke(핵심) + recovery(손→차렷) 구조라는 진단 기반. `computeStrokeRange`가 활성 팔 본(`BnBracoR/L`, `BnAntBracoR/L`, `BnMaoOrientR/L`)의 누적 angular delta를 60샘플링해서 head/tail 12% 임계로 stroke 경계 검출, ±50ms padding + 40% 최소 길이 안전망 적용. `fetchClipFromEntry`가 stroke 시점의 quaternion으로 `startPose`/`endPose`를 sample(차렷이 아닌 의미적 포즈). `rebuildActionsForCurrentModel`에 큐 위치별 `effectiveStart/effectiveEnd` 분기: 단일 글로스 = trim X, 첫 글로스 = head trim X(자체 prep로 손 올림), 마지막 글로스 = tail trim X(자체 recovery로 차렷 복귀), 중간 = 양쪽 trim. animate 루프의 fade window는 `effectiveEnd - action.time` 기준, `next.action.time = next.effectiveStart`. `updateTimeline` elapsed도 effective 길이 합산.
+- **Playwright 검증 (P5.1 결과)**:
+  - `Sim bom dia` → SIM[0.00→3.06/3.40s,266ms] | BOM[0.23→1.60/1.80s,274ms] | DIA[0.28→2.30/2.30s], total **5.903s** (baseline 7.082s, **−1.18s**)
+  - `Eu beber agua` → EU[0.00→1.69/1.93s,235ms] | BEBER[0.31→1.96/2.23s,285ms] | AGUA[0.37→3.80/3.80s] (P5 Phase A에서 124ms FADE_MIN clamp 되던 문제가 stroke 시점 quaternion 사용으로 235/285ms 의미적 거리로 해결됨)
+  - `Olá casa` → OLÁ[0.00→2.21/2.57s,274ms] | CASA[0.30→2.47/2.47s] (총 ~4.10s)
+  - `Casa escola não` → CASA[0.00→2.12/2.47s,256ms] | ESCOLA[0.29→3.30/3.53s,268ms] | NÃO[0.33→2.77/2.77s] (총 ~7.05s)
+  - 단일 글로스 `Olá` → OLÁ[0.00→2.57/2.57s] (trim X, 차렷→stroke→차렷 자체 재생). JS 에러 0.
+- **향후 후보 (Phase B/C, 시각 검토 후 결정)**:
+  1. **Stroke trim 임계값 튜닝**: 12% → 8/15/18% 비교, 시각 검토 후 적정값. 특정 글로스에서 prep/recovery가 너무 일찍/늦게 잘릴 가능성
+  2. **Cosine easing**: linear ramp 대신 cosine ease-in-out — 큰 delta transition에 잔존 kink 있을 때만
+  3. **IK-based 손 궤적 보정 (arc dip)** (P5.5/P6): 사용자가 더 자연스러운 dip을 원하면 손목 Cubic Bezier/Catmull-Rom + 2-bone IK 팔꿈치
+  4. **Anticipation/overshoot easing** (P6): 실제 수어 리듬
+- **관련 파일**: `public/players/sentence/index.html` (`computeStrokeRange`, `extractPoseAt`, `computeTransitionDuration`, `BONE_WEIGHTS`, `STROKE_*`, `rebuildActionsForCurrentModel`, `computeTotalDuration`, `updateTimeline`, animate 루프 fade window)
 
 ### P6: 수어문 비수지(non-manual) 노테이션 해석 및 재생
 - **배경**: LIBRAS에서 비수지 요소(얼굴 표정, 눈썹 위치, 머리 기울임, 구형·입 모양, 시선)는 문법적으로 필수다. 부정·의문·조건·topic 표시가 모두 비수지로 처리된다. VLibras 번역 API가 반환하는 글로스 시퀀스에 이런 메타 정보가 포함되지만 현재 Sentence Player는 단순 글로스 토큰만 추출한다.
@@ -106,107 +118,149 @@
 
 ## 주간보고
 
-### 종합 정리 (아이템별)
+### 2026-04-15 (수)
 
-- Sentence Player (P1) 파이프라인 구축
-  1. VLibras 번역 API 스펙 실측·확정
-     1) `POST https://traducao2.vlibras.gov.br/translate`, JSON body `{"text":"..."}`, plain text 응답
-     2) `\s+` split 파싱, CORS 직접 허용 → Vercel rewrite 불필요
-  2. AssetBundle → Three.js JSON 배치 변환기 (`tools/vlibras2slmb/batch/precompute_threejs.py`)
-     1) UnityPy 1.25 lowercase API 대응 인라인 리더 내장
-     2) `--legacy` 기본 적용
-  3. 레거시 retarget 파이프라인 역공학
-     1) yz sign flip `(x,y,z,w)→(x,-y,-z,w)` 모든 body bone 회전에 적용
-     2) Icaro-bind 7개 헬퍼 본 (`BnBacia001`, `BnMaoOrientR/L`, `BnPolyVR/L`, `ik_FKR/L`) 정적 override
-     3) position tracks는 Icaro bind pose 값으로 2-keyframe static 고정
-     4) Playwright 픽셀 검증 — `CASA`·`ESCOLA` 레퍼런스 대비 bone delta ≤ 6mm
-  4. 신규 플레이어 `public/players/sentence/index.html`
-     1) 문장 입력 → 번역 → ASCII 키 정규화(`NFKD`) → 사전 변환 번들 fetch → 재생
-     2) 글로스 칩 UI (미싱 ⚠️ 표시)
-     3) 큐잉 + crossfade 연속 재생 (`CROSSFADE_SEC=0.2s`)
-     4) `mixer.addEventListener('finished')` + 렌더 루프 timeLeft 체크 → `crossFadeTo`로 다음 액션
-     5) `stopAndDisposeQueue()` 메모리 정리, 재번역 5연속 누수 없음 확인
-  5. 융합 토큰 폴백
-     1) `BOM_DIA` 같은 융합 토큰을 `_`로 split하여 sub-token 재조회
-     2) 모든 sub-token이 resolve될 때만 fallback 적용 (부분 확장 금지)
-  6. Playwright E2E 검증 — `Olá casa`(4.833s), `Sim bom dia`(7.1s), `Casa escola não`(8.367s) 등 20+ 시나리오
-- VLibras 공식 위젯 통합
-  1. CDN 임베드 (`vlibras.gov.br/app/vlibras-plugin.js`)
-     1) `<div vw>` 컨테이너 + `vw-access-button` + `vw-plugin-wrapper` 마크업
-     2) `new VLibras.Widget({rootPath, position:'R', opacity:1})` 인스턴스화
-  2. 토글 버튼 (`#vlibras-toggle`)
-     1) 컨트롤 바 우측에 `🤟 위젯` 버튼 추가, `model-btn` 클래스 재사용
-     2) 토글 OFF 기본 — `[vw]`의 `enabled` 클래스만 관리 (active 강제 토글은 제거)
-     3) `localStorage['vlibrasPluginEnabled']`로 상태 복원
-     4) 첫 ON에서 `[vw-access-button]` 자동 클릭 디스패치 → `window.plugin` lazy 초기화 선행
-  3. 동기화 함수 `syncToVLibrasPlugin(text)`
-     1) Tier 1: `plugin.translate(text)` 직접 호출
-     2) `plugin.player.translate(text)` 폴백
-     3) `waitForVlibrasPlugin(2500ms)` polling으로 lazy 인스턴스 생성 대기
-     4) Tier 2/3/4(Selection 트릭·입력박스 스크래핑·안내 UI) 미구현 — Tier 1이 동작하므로 dead code 회피
-     5) `handleTranslate()` 성공 후 `playQueue()` 직후 fire-and-forget 호출, throw 없음
-  4. `safeClick` WeakMap dispatcher로 위젯 click 가로챔 우회
-     1) 위젯이 document capture phase에서 전역 click을 가로채 chrome 버튼 핸들러 차단 + 버튼 textContent 자동 번역 트리거
-     2) `window` capture phase에서 먼저 가로채는 `__vlibrasSafeClickHandlers` WeakMap dispatcher 추가
-     3) `translate-btn`, `vlibras-toggle`에 적용
-     4) Plan에 없던 추가 구현이지만 필수
-  5. Plan과 다른 결정 — `[vw-access-button]`/`[vw-plugin-wrapper]`의 `active` 클래스는 강제 토글하지 않음 (플러그인 내부 상태머신이 사용자가 펼치는 순간 즉시 리셋)
-- 어휘 확장 21 → 27 (MORAR/QUERER/ESTUDAR/IR/TER/FALAR), 다음 100 목표
-- 테스트 가이드 — 24개 실측 문장 5범주 + 회귀 5문장 시퀀스
-- 메인 vs. VLibras 위젯 chirality 차이 분석
-  1. 관찰 — 메인 = 오른손, 위젯 = 왼손 (gov.br 공식도 동일)
-  2. 원인 — precompute X-mirror가 Icaro bind pose의 X-mirror된 R/L 배치와 self-consistent
-  3. LIBRAS 컨벤션
-     1) 양손 모두 valid (signer dominance 자유)
-     2) 학술 문서화는 오른손 표준, 위젯 dominant-hand 옵션 부재
-  4. 결론 — 둘 다 valid, 코드 수정 없음. 분석 문서 + 알려진 이슈 #7 추가
-- 저장소·배포 인프라
-  1. `slmb/` + `vlibras/` → `sls_brazil_player` 단일 저장소 통합
-  2. 공유 `public/avatars`·`public/animations` + 랜딩·문서 페이지
-  3. GitHub 저장소 + Vercel 정적 배포 (Git push 자동)
-- 문서·워크스페이스 정리
-  1. `CLAUDE.md`, `project-status.md`, plan 문서 헤더 갱신
-  2. `.gitignore` — `/*.png`, `.playwright-mcp/`, `/vlibras-portal/`(2.1GB)
-  3. 루트 Playwright PNG 31개·캐시 디렉토리·검증 스크린샷 삭제
+- [완료] **Stroke 검증 전용 테스트 플레이어** (`public/players/sentence-stroke-test/index.html`, 신규 ~1200 라인, `sentence/index.html` 일절 수정 없음)
+  - **배경**: P5.1 Stroke Trim 출시 후 사용자가 Sim bom dia 배치 재생에서 BOM의 recovery가 "차렷까지" 포함되는 현상을 보고. Production 코드(`sentence/index.html`)는 튜닝/실험에 부적합 → 검증 대상과 도구를 격리한 독립 플레이어 구축.
+  - **골격**: `vlibras-v3/index.html` 단일 글로스 구조 기반, `sentence/index.html:331-572`의 stroke 검출 블록(`STROKE_*` 상수, `asciiKey`, `loadBundleIndex`, `buildClipFromJson`, `sampleQuaternionAt`, `extractPoseAt`, `computeStrokeRange`)을 `// SYNC: ...:<line>` 주석과 함께 복제.
+  - **4가지 stroke 검출 방법 동시 비교**:
+    - **Method A — Cumulative %**: sentence player와 동일. 누적 angular delta 기반, slider head/tail 각 5-35% (기본 12/12)
+    - **Method B — Peak-hold window**: `velocity ≥ peakVel × threshold%` 인 구간, slider 15-85% (기본 45)
+    - **Method C — Rest-pose + hold plateau (asymmetric)**: strokeStart는 peak 왼쪽 scan에서 `restDist < restPct%`, strokeEnd는 **peak 오른쪽 scan에서 `restDist < 90%` 첫 지점**(hold 끝). slider 10-90% (기본 30)
+    - **Method D — Peak drop (centered)**: peak 기준 좌우 스캔, `velocity < peakVel × (1-drop%)` 첫 지점, slider 10-70% (기본 40)
+  - **Motion profile SVG 차트**: 496×180 viewBox, velocity(파랑 실선) + cumulative(회색 점선) + rest-pose distance(주황 실선) + peak marker + 각 method의 strokeStart/strokeEnd 수직 점선. Active method는 굵은 실선 + 음영 rect + 재생 커서(노랑).
+  - **실시간 재계산**: slider 조정 시 해당 method만 재계산 → 차트 + 정보 패널 + stroke-bar 즉시 업데이트. Active method radio 변경 시 재생 경계 전환.
+  - **Method C 진화 기록** (BOM 사례):
+    1. 초기 bidirectional `restDist >= thresh` first/last index: BOM [0.183, 1.617] — recovery 후반 포함
+    2. Peak-centered scan: 단일 peak 구조에선 동일 결과 — 미해결
+    3. **최종 asymmetric + plateau 90%**: BOM [0.183, **1.190**] — recovery 427ms 배제. SIM 3.062→2.478, DIA 2.055→1.364
+  - **단일 단어 재생**: Full/Stroke only 토글, LoopRepeat 모드. animate 루프에서 `[strokeStart, strokeEnd]` 외부 clamp. 미니 stroke 바에 전체 clip 대비 stroke 구간 하이라이트.
+  - **범용 배치 재생** (`_runBatch(words, label)`):
+    - 여러 clip을 `batchMixer`에 LoopOnce + clampWhenFinished로 바인딩, 각 action은 `time = strokeStart`부터 play
+    - animate 루프에서 **두 가지 작업**: (1) `timeLeft ≤ nextFadeSec(200ms)` 시 `crossFadeTo(next, fadeSec)` 트리거, (2) `action.time ≥ strokeEnd` 시 `paused = true` + `batchCurrentIdx++`
+    - **중요 수정**: 초기 `finished` 이벤트 기반 advance는 중간 clip이 strokeEnd를 115ms 지난 뒤 trigger되어 recovery 재생 → animate 루프 `strokeEnd` 수동 감지로 전환해 정확히 1 프레임 오버런 이내로 정지
+    - **Delta cap**: `Math.min(clock.getDelta(), 0.1)` — tab throttling/fetch wait으로 경계 건너뛰기 방지
+  - **프리셋 배치**: "Sim bom dia" 버튼 = `runBatch(['SIM','BOM','DIA'], 'Sim bom dia')` 래퍼
+  - **임의 문장 번역 배치**: 새 `#sentence-input` + `#translate-btn`. `translateSentence(text)`가 `POST traducao2.vlibras.gov.br/translate`(sentence/index.html:612-623 포팅) → plain text `\s+` split → 글로스 배열. 미매칭 단어는 skip + 에러 배너에 "미매칭 단어 N개: ..." 표시. "Bom dia amigo" 실 API 호출 검증 완료.
+  - **Debug hook**: `window.__strokeTest.getBatchState()` — 외부 테스트 harness가 live batch state(각 action의 `time/weight/paused/_fadeStarted/strokeStart/strokeEnd`) 조회. Playwright 내부 상태 샘플링에 활용.
+  - **Playwright 검증**:
+    - 단일 단어 각 method 수치: SIM A=[0.338,3.062]80.1%/C=[0.346,2.478]62.7%, BOM A=[0.233,1.597]75.8%/C=[0.183,1.190]55.9%, DIA A=[0.284,2.055]77.0%/C=[0.234,1.364]49.2%
+    - 슬라이더 실시간(C 30→50% → [0.305,1.525]67.8%)
+    - Active method 전환 A→C: info 패널 + stroke-bar + 재생 경계 모두 전환
+    - 배치 내부 샘플링(Method C): SIM strokeEnd 2.478에서 paused, BOM strokeEnd 1.190에서 **최대 1.204 오버런(14ms = 1 프레임 미만)** 후 paused. crossfade weight BOM 1.0→0.40→0.0 / DIA 0.0→0.60→1.0 (200ms linear)
+    - "Bom dia amigo" 실 번역 API → `BOM DIA AMIGO` → 4.3s 완료, JS 에러 0
+  - **결정**: `sentence/index.html`(P5.1 production)은 일절 수정하지 않음. Method C가 현재 권장. sentence 파일에 적용 여부는 P5.2로 별도 결정.
+  - **Plan 파일**: `C:\Users\admin\.claude\plans\twinkling-snacking-diffie.md`
 
----
-
-### 2026-04-14 (화)
-- [완료] **Sentence Player ↔ VLibras 공식 위젯 통합** — 한 번의 문장 입력으로 로컬 Three.js 아바타와 공식 위젯 Unity WebGL 아바타가 동시에 같은 문장을 재생
-  - 공식 CDN 위젯 임베드 (`vlibras.gov.br/app/vlibras-plugin.js`), 토글 OFF 기본, `localStorage`로 상태 복원
-  - `syncToVLibrasPlugin(text)` + `waitForVlibrasPlugin(2500ms)` 구현. Tier 1 `plugin.translate(text)` 성공 확인 → Tier 2/3/4 폴백 생략
-  - 첫 ON에서 `[vw-access-button]` 자동 클릭해 `window.plugin` lazy 초기화 선행
-- [완료] **VLibras 위젯 click 가로챔 우회**: 위젯이 document capture phase에서 전역 click을 가로채 우리 chrome 버튼의 핸들러 호출을 막고 버튼 textContent까지 자동 번역해버리는 충돌 발견 → `safeClick()` WeakMap 기반 window-capture dispatcher로 우회. `translate-btn`, `vlibras-toggle`에 적용
-- [완료] **문서 정리**: `sentence-vlibras-plugin-integration-plan.md` 헤더에 구현 결과 요약 추가, `vlibras-portal/`(2.1GB 참조 클론)을 `.gitignore`에 등록, 루트 검증용 PNG 제거
-- [완료] **메인 vs. 위젯 chirality 차이 분석**: 사용자가 두 아바타의 손잡이(메인=오른손, 위젯=왼손) 차이를 보고 → 코드 추적, LIBRAS 학술 컨벤션 조사, VLibras 위젯 옵션 조사. 결론: 두 표현 모두 LIBRAS 측면에서 valid (메인은 학술 문서화 컨벤션에 부합, 위젯은 VLibras 공식 채널 일관 베이크). 수정 작업 없음. 분석 문서 [`avatar-handedness-analysis.md`](avatar-handedness-analysis.md) 작성 + 알려진 이슈 #7 추가
-- [예정] 어휘 확장 (27 → 100 수준), `asset_bundle.py` UnityPy 1.25+ 마이그레이션(P2 선행), Sentence Player seek(P4)
-
-### 2026-04-13 (월)
-- [완료] **P1 end-to-end 파이프라인 구축 완료** (M0~M5)
-  - VLibras 번역 API 스펙 실측 확정 (POST JSON, plain text 응답, CORS 직접 허용)
-  - Unity AssetBundle → Three.js JSON 배치 변환기 구현
-  - 레거시 변환 파이프라인 역공학 성공 (yz sign flip + Icaro-bind override + Playwright 픽셀 검증)
-  - `public/players/sentence/` 신규 플레이어 구현 (번역 + 큐잉 + crossfade)
-  - Playwright E2E 검증: `Olá casa`(4.833s), `Sim bom dia`(7.1s), `Casa escola não`(8.367s) 모두 성공
-  - 융합 토큰 폴백 로직 (`BOM_DIA` → `BOM`+`DIA` 자동 분해)
-- [완료] **어휘 확장 (21 → 27)**: MORAR, QUERER, ESTUDAR, IR, TER, FALAR 추가. "Eu morar casa" 같은 흔한 문장이 바로 작동
-- [완료] **테스트 가이드 작성**: 24개 VLibras 실측 문장을 project-status.md 하단에 5개 범주로 정리. 회귀 테스트 5문장 시퀀스 제안
-- [완료] **Git 커밋·푸시 6회**: C213429 → 2D94138 → E474B48 → A482322 → DECA3DF 등
-- [완료] **워크스페이스 정리**: 루트 Playwright PNG 31개 + `.playwright-mcp/` 디렉토리 삭제, `.gitignore`에 재발 방지 규칙 추가
-- [예정] 어휘 확장 (27 → 100 수준), `asset_bundle.py` UnityPy 드리프트 수정, Sentence Player seek 기능(P4)
-
-### 2026-04-08 (화)
-- [완료] `slmb/`, `vlibras/` 두 프로젝트를 단일 저장소로 통합
-- [완료] 공유 아바타/애니메이션 폴더 구성, 메인 랜딩 페이지 생성
-- [완료] Git 저장소 생성, Vercel 배포 완료
-- [완료] 프로젝트 현황 문서 작성
-- [완료] P1 번역 파이프라인 구축 (2026-04-13로 이관)
+- [예정] **P5.2 — Method C asymmetric 적용 결정**: 검증 도구에서 튜닝한 Method C를 `sentence/index.html`에 back-port할지, PLATEAU_RATIO(0.90) 고정값을 노출할지, 다양한 글로스(CASA/ESCOLA/AGUA/VOCE/AMIGO/TRABALHO 등)에서 육안 검증 후 결정
+- [예정] 어휘 확장 (27 → 100), `asset_bundle.py` UnityPy 1.25+ 마이그레이션, Sentence Player seek(P4)
 
 ---
 
 ## 작업 이력
 
+### 2026-04-15
+- **Stroke 검증 전용 테스트 플레이어 신설** (`public/players/sentence-stroke-test/index.html`, ~1200 라인, `sentence/index.html` 수정 없음)
+  - **배경**: P5.1 Stroke Trim 출시 후 사용자가 "Sim bom dia 배치에서 BOM이 손이 많이 내려올 때까지 재생된다"고 보고. Production 코드는 튜닝/실험 위험 → 격리된 검증 도구 필요.
+  - **구조**: `vlibras-v3/index.html` 단일 글로스 구조를 골격으로, `sentence/index.html:331-572`의 stroke 블록 복제. 복제된 상수/함수 각 블록에 `// SYNC: public/players/sentence/index.html:<line>` 주석으로 원본 추적.
+  - **복제 대상**: 상수 `STROKE_PAD_HEAD/TAIL`, `MIN_STROKE_RATIO`, `STROKE_SAMPLE_N`, `STROKE_BONES`, 함수 `asciiKey`(368-370), `loadBundleIndex`(373-377), `buildClipFromJson`(380-397), `sampleQuaternionAt`(400-422), `extractPoseAt`(425-437), `computeStrokeRange`(443-522)
+  - **Motion Profile 계산** (`computeMotionProfile(clip)`, 신규): 60 sample 등간격 분할, STROKE_BONES 6개 본의 per-step angular delta/cumulative/velocity/rest-pose distance를 한 번에 반환. 피크 index, 최대 rest 포함.
+  - **4가지 stroke 검출 방법**:
+    1. **Method A — Cumulative %** (sentence/index.html:443-522 로직 포팅): head/tail 임계 slider(5-35%, 기본 12/12). ±50ms padding + 40% 최소 길이 안전망. `clampTriggered` 플래그 fork 추가.
+    2. **Method B — Peak-hold window**: `velocities[i] >= peakVel × thresholdPct%` 인 첫/마지막 sample. slider 15-85% (기본 45)
+    3. **Method C — Rest-pose + hold plateau (asymmetric)**: strokeStart는 peak 왼쪽 scan으로 `restDist < restPct%` 지점, strokeEnd는 peak 오른쪽 scan으로 `restDist < PLATEAU_RATIO(0.90)` 지점. strokeStart slider만 노출(10-90%, 기본 30). PLATEAU_RATIO=0.90 상수 고정 — "peak의 90% 이상 유지되는 마지막 지점" = hold 끝 = recovery 시작 직전
+    4. **Method D — Peak drop (centered)**: peak 기준 좌우 스캔, `velocity < peakVel × (1 - dropPct/100)` 첫 지점. slider 10-70% (기본 40)
+  - **SVG Motion Profile 차트**: 496×180 viewBox. 3 path(velocity 파랑, cumulative 회색 점선, rest-dist 주황) + peak marker + 각 method strokeStart/End 수직선 + active method 음영 rect + playback cursor(노랑). `renderChart()`가 `chartEl.textContent=''` 후 `svgElem(tag, attrs)` 헬퍼로 SVG element를 createElementNS로 append.
+  - **Method C 진화 기록** (BOM, duration 1.800s):
+    1. 초기 bidirectional last-index: BOM [0.183, 1.617] 79.7% — recovery 후반 포함
+    2. Peak-centered scan: 단일 peak 구조라 동일 결과 — 미해결
+    3. Asymmetric + plateau 90% (최종): BOM [0.183, **1.190**] 55.9% — recovery 427ms 배제. SIM strokeEnd 3.062→2.478(584ms 당김), DIA 2.055→1.364(691ms)
+  - **UI 구성**:
+    - 상단 `#controls`: sentence-input(번역 문장) + translate-btn + word-input(단일 단어) + load-btn + batch-btn("Sim bom dia" 프리셋) + model selector. `flex-wrap` 적용
+    - 좌측 `#info`: Clip 섹션(word/duration/model) + Active Stroke 섹션(method/stroke/frames/ratio/clamp/mode)
+    - 우측 `#compare-panel`: motion profile SVG + 4개 method row(radio + slider + 결과 표시)
+    - 하단 `#player-bar`: stroke-legend + stroke-bar(highlight + cursor) + timeline + play/pause/stop/loop + Full/Stroke only 토글
+  - **단일 단어 재생 제어**: `applyPlaybackMode()`가 `[strokeStart, strokeEnd]` 외부면 clamp. animate 루프 LoopRepeat + strokeEnd 도달 시 루프 or 정지.
+  - **범용 배치 재생** (`_runBatch(words, label)`):
+    - Promise.all로 parallel fetch, 각 clip의 active method stroke 범위 계산
+    - 미매칭 단어는 `missing[]`에 누적, 에러 배너에 한 번에 표시 ("미매칭 단어 N개: X, Y, ...")
+    - 재생 가능한 단어 0개면 "재생 가능한 단어가 없습니다" 표시 + endBatch
+    - `batchMixer = new AnimationMixer(currentModel)` 새로 생성, 각 clip을 LoopOnce + clampWhenFinished action으로 바인딩, `nextFadeSec = 200ms`
+    - 첫 action을 `time = strokeStart`로 reset + play + mixer.update(0)
+    - animate 루프:
+      1. `batchMixer.update(delta)` (delta cap 0.1)
+      2. Crossfade trigger: `!curr._fadeStarted && timeLeft ≤ curr.nextFadeSec && currentIdx < N-1` → next.reset + next.time = strokeStart + next.play + `curr.action.crossFadeTo(next.action, curr.nextFadeSec, false)`
+      3. **strokeEnd 수동 advance**: `curr.action.time >= curr.strokeEnd - 1e-4` → `curr.action.paused = true` + (중간이면 `batchCurrentIdx++`, 마지막이면 `endBatch()`)
+  - **`finished` 이벤트 제거 (중요 수정)**: 초기 구현은 LoopOnce+clampWhenFinished의 finished 이벤트로 idx advance했으나, SIM(duration 3.4, strokeEnd 2.478)이 clip 끝까지 재생되는 동안 BOM이 이미 strokeEnd+115ms까지 진행 → recovery 보이는 버그. animate 루프 수동 감지로 전환하면서 `batchOnFinished = null`.
+  - **Delta cap**: `Math.min(clock.getDelta(), 0.1)` — Playwright headless tab throttling / fetch wait 후 첫 raf tick의 대용량 delta가 경계를 건너뛰는 것 방지 (표준 Three.js animate 패턴).
+  - **프리셋 버튼**: `runBatchSimBomDia()` = `runBatch(['SIM','BOM','DIA'], 'Sim bom dia')` 래퍼. 기존 하드코딩 제거.
+  - **임의 문장 번역 배치**:
+    - `TRANSLATE_URL = 'https://traducao2.vlibras.gov.br/translate'` 상수 추가
+    - `translateSentence(text)`가 POST JSON body `{text}`, plain text 응답을 `\s+` split (sentence/index.html:612-623 포팅)
+    - `onTranslateAndBatch()`: sentence-input 값 → translateSentence → `runBatch(glosses, text)`
+    - Enter 키 또는 translate-btn 클릭, 번역 중 translate-btn disabled
+  - **Debug hook**: `window.__strokeTest.getBatchState()` — `batchMode`, `batchCurrentIdx`, `activeMethod`, 각 queue item의 `raw/time/paused/weight/fadeStarted/strokeStart/strokeEnd/duration` 반환. 외부 테스트 harness에서 live state 조회.
+  - **Playwright 검증 (단일 단어)**:
+    - 페이지 로드 정상, 콘솔 "bundle index loaded: 27 glosses"
+    - SIM/BOM/DIA 순차 로드 각 method 결과 DOM 읽기 확인
+    - 슬라이더 실시간 재계산 (C slider 30→50% → 재계산 + 차트 재렌더)
+    - Active method 전환 A→C → info 패널 + stroke-bar left/width + 재생 경계 모두 전환
+    - chart SVG 3 path + 13 line + 7 text 렌더링 확인
+  - **Playwright 검증 (배치)**:
+    - 내부 state 샘플링 (200ms 간격):
+      - t=2063ms: SIM.time=2.378 w=0.50, BOM.time=0.283 w=0.50 → crossfade 진행
+      - t=2271ms: SIM.time=**2.479 w=0 paused=true**, BOM.time=0.503 w=1.00 → SIM strokeEnd 2.478 정확히 도달 후 정지
+      - t=2891ms: BOM.time=1.124 w=0.40, DIA.time=0.354 w=0.60 → BOM→DIA crossfade
+      - t=3091ms: BOM.time=**1.204 w=0 paused=true**, DIA.time=0.554 w=1.00 → BOM strokeEnd 1.190 + 14ms(1 프레임 미만) 오버런 후 정지
+      - t=3915ms: 배치 종료
+    - "Bom dia amigo" 실 번역 API 호출 → `translated → BOM DIA AMIGO` → `batch start "Bom dia amigo" (method: C, fade: 200ms) BOM[0.183→1.190/1.80s] DIA[0.234→1.364/2.30s] AMIGO[0.233→1.267/1.97s]` → 4.3s 총 시간, JS 에러 0
+  - **결정 사항**:
+    - `sentence/index.html`(P5.1 production)은 일절 수정하지 않음 → 검증 대상과 도구 격리
+    - Method C가 현재 권장 방법 (recovery 배제가 가장 명확)
+    - PLATEAU_RATIO = 0.90 고정, slider 미노출 (필요 시 노출)
+    - sentence 파일에 Method C 적용 여부는 P5.2로 별도 결정
+  - **관련 파일**:
+    - 신규: `public/players/sentence-stroke-test/index.html`
+    - 참조(수정 없음): `public/players/sentence/index.html`, `public/players/vlibras-v3/index.html`
+  - **Plan 파일**: `C:\Users\admin\.claude\plans\twinkling-snacking-diffie.md`
+
 ### 2026-04-14
+- **P5.1 — Sentence Player Stroke Trim 출시** (`public/players/sentence/index.html` 단일 파일)
+  - **문제**: P5 Phase A 출시 후 사용자가 "단어와 단어 사이에 손이 차렷자세까지 내려갔다 다시 올라온다"고 보고. 진단: 모든 글로스 클립이 prep(차렷→손 올림) + stroke(핵심) + recovery(손→차렷) 구조. 큐 연결 시 매 글로스마다 recovery+prep = 양쪽 60%가 차렷 왕복 dead time.
+  - **데이터 진단**: SIM/BOM/DIA/EU/BEBER/AGUA/OLA/CASA/ESCOLA 8개 글로스에서 활성 팔 본의 quintile-wise angular delta 측정 → 모두 강한 U-shape. 첫·마지막 quintile이 25-42%, 중간 quintile이 0.7-9.3%. 키프레임 density는 정반대 분포 (양 끝에 더 많음 — Unity가 t=0과 t=duration에 항상 박는 관습)이므로 키프레임 시간 직접 활용은 거부.
+  - **알고리즘**: `computeStrokeRange(clip)`이 STROKE_BONES(`BnBraco{R,L}`, `BnAntBraco{R,L}`, `BnMaoOrient{R,L}`)의 합산 angular delta를 60샘플링(`sampleQuaternionAt` 헬퍼)해서 누적값이 head 12% / tail 88% 임계에 도달하는 시점을 stroke 경계로 잡는다. ±50ms padding(`STROKE_PAD_HEAD/TAIL`) 적용 + 40% 최소 길이 안전망.
+  - **헬퍼 신설**: `sampleQuaternionAt(track, t)` (binary search + SLERP), `extractPoseAt(clip, t)` (BONE_WEIGHTS 본 quaternion 추출 일반화), `computeStrokeRange(clip)`. 기존 `extractBoundaryPoses`는 `extractPoseAt`으로 일반화되어 제거.
+  - **`fetchClipFromEntry`**: stroke 시점의 quaternion으로 `startPose`/`endPose` sample (이전 P5 Phase A는 t=0/t=duration 차렷 quaternion이라 거리 측정이 부정확했음). entry에 `strokeStart`/`strokeEnd`도 첨부.
+  - **큐 위치별 trim 분기** (`rebuildActionsForCurrentModel`):
+    - 단일 글로스 (N=1): trim X (차렷 → 글로스 → 차렷 자체 재생)
+    - 첫 글로스: head trim X (차렷에서 자체 prep로 손 올림)
+    - 마지막 글로스: tail trim X (자체 recovery로 차렷 복귀)
+    - 중간 글로스: 양쪽 trim (stroke만)
+  - **재생 통합**: `restartQueueFromStart`가 첫 액션 `time = effectiveStart`. animate 루프 fade window가 `effectiveEnd - action.time` 기준, 다음 액션 시작 시 `next.action.time = next.effectiveStart`. `computeTotalDuration`/`updateTimeline` elapsed가 effective 길이 합산으로 재작성.
+  - **Playwright 검증** (5케이스):
+    - `Sim bom dia` → SIM[0.00→3.06,266ms] | BOM[0.23→1.60,274ms] | DIA[0.28→2.30] = **5.903s** (P5 Phase A 7.082s에서 −1.18s)
+    - `Eu beber agua` → EU[0.00→1.69,235ms] | BEBER[0.31→1.96,285ms] | AGUA[0.37→3.80] (P5 Phase A의 124ms FADE_MIN clamp 문제가 stroke 시점 quaternion 사용으로 235/285ms 의미적 거리로 해결)
+    - `Olá casa` → OLÁ[0.00→2.21,274ms] | CASA[0.30→2.47]
+    - `Casa escola não` → CASA[0.00→2.12,256ms] | ESCOLA[0.29→3.30,268ms] | NÃO[0.33→2.77]
+    - 단일 글로스 `Olá` → OLÁ[0.00→2.57] (trim X, 전체 재생). JS 에러 0.
+  - **결정 사항**: stroke 사이는 Three.js native crossfade (quaternion SLERP)만 사용. 손이 가슴/배까지 내려왔다 올라오는 dip arc는 P5.1 범위 외 — 사용자가 "stroke end → stroke start 사이는 보간만 하면 되고 손이 내려올 필요 없다"고 명시.
+- **P5 Phase A — Sentence Player 동적 모션 블렌딩 출시** (`public/players/sentence/index.html` 단일 파일, +99/-8 라인)
+  - **Plan**: `C:\Users\admin\.claude\plans\curried-shimmying-bengio.md` (사전 탐색에서 vlibras-portal 소스가 Unity wasm이라 JS-level 블렌딩 코드 재사용 불가임을 확인)
+  - **상수 블록 (line 304)**: `CROSSFADE_SEC = 0.2` 제거 → `FADE_MIN=0.12`, `FADE_MAX=0.45`, `D_REF=1.5` (라디안), `BONE_WEIGHTS` 13개 본 (어깨 0.6 + 상박 1.5 + 전박 1.2 + 손목 1.8 + 손가락 root 0.3 + 목 0.3, R/L 대칭)
+  - **헬퍼 신설** (`buildClipFromJson` 직후): `extractBoundaryPoses(clip)`이 `THREE.QuaternionKeyframeTrack`만 골라 첫/마지막 keyframe 값을 `Map<bone, Quaternion>`으로 추출 (mixer 인스턴스 불필요, O(track 수)). `computeTransitionDuration(prevEnd, nextStart)`이 가중 RMS 각거리 D를 sqrt 곡선으로 [FADE_MIN, FADE_MAX]에 매핑.
+  - **`fetchClipFromEntry`**: 반환 객체에 `startPose`/`endPose` 필드 첨부 (한 번만 계산)
+  - **`computeTotalDuration`**: 고정 `CROSSFADE_SEC * (n-1)` → 각 인접 쌍의 `nextFadeSec` 합산으로 가변 overlap 반영
+  - **`rebuildActionsForCurrentModel`**: `queueActions.map` 직후 per-pair `nextFadeSec` 패스 추가 (마지막 엔트리는 0). `__debugBlend` 게이트 뒤에 `console.log('[P5] queue fades: ...')` 1회성 디버그 라인 보존 (production-safe).
+  - **`updateTimeline` elapsed 계산**: 가변 `nextFadeSec` 합산으로 정확한 wall-clock 위치 유지
+  - **animate 루프 fade window**: `CROSSFADE_SEC` → `curr.nextFadeSec ?? FADE_MIN` 폴백으로 동적화. `crossFadeTo(next, fadeSec, false)`는 그대로 (Three.js linear ramp 유지)
+  - **Playwright 검증** (자동 회귀 5케이스):
+    - `Sim bom dia` → SIM→BOM **294ms**, BOM→DIA **124ms**, total 7.082s ✓
+    - `Eu beber agua` → EU→BEBER **124ms**, BEBER→AGUA **124ms** (모두 FADE_MIN clamp — 글로스 boundary가 quaternion 기준으로는 비슷)
+    - `Olá casa` → OLÁ→CASA **294ms**, total 4.739s ✓
+    - `Casa escola não` → CASA→ESCOLA **294ms**, ESCOLA→NÃO **123ms**, total 8.350s, finished exact match ✓
+    - 모델 전환 (Padrão→CASA) 후 동일 큐 동일 fade 값 정상 재구성. JS 에러 0.
+  - **관찰**: SIM/CASA/OLÁ 같은 글로스의 끝 포즈와 BOM/ESCOLA의 시작 포즈는 quaternion 거리 큼 → 294ms 동적 확장. EU/BEBER/AGUA는 손 위치가 다른데 손목 회전이 비슷한 케이스 → quaternion만으로는 distinguishing 어려움. Phase B 후보(wrist world position 거리 추가) 식별.
+  - **vlibras-portal 소스 검증**: `app/vlibras-plugin.{js,chunk.js}` + `barra*.js` 전수 grep 결과 `crossfade/blend/lerp/slerp/interpolat*` 0건. JS 계층은 `SendMessage("PlayerManager", "playNow"|"setSlider"|"setPauseState"|"stopAll", ...)` 4개 API만 노출. 블렌딩 로직 전체가 `playerweb.wasm.code.unityweb` 바이너리 안 → JS-level 재사용 불가능. 위젯은 시각 비교 레퍼런스로만 사용 (`🤟 위젯` 토글 그대로).
 - **Sentence Player ↔ VLibras 공식 위젯 통합 완료** (`public/players/sentence/index.html` 단일 파일, +145/-8 라인)
   - **Step 1 임베드** (line 1035-1049): `<div vw><div vw-access-button>...</div></div>` + `https://vlibras.gov.br/app/vlibras-plugin.js` + `new VLibras.Widget({position:'R', opacity:1})`. 토글 OFF 기본 (`enabled` 클래스 없음).
   - **Step 2 토글 버튼** (line 216, 1002-1032): `#vlibras-toggle`(`🤟 위젯`) 컨트롤 바 우측에 추가. `setVlibrasPluginEnabled(enabled)` 헬퍼가 `[vw]`의 `enabled` 클래스만 관리. 첫 ON에서는 `[vw-access-button]` 자동 클릭을 디스패치해 `window.plugin` lazy 초기화를 선행. `localStorage['vlibrasPluginEnabled']`로 상태 복원.

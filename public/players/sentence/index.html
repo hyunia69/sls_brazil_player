@@ -301,7 +301,45 @@ scene.add(new THREE.DirectionalLight(0x8888ff, 0.4).translateX(-3).translateY(2)
 scene.add(new THREE.GridHelper(10, 20, 0x333355, 0x222244));
 
 // --- State ---
-const CROSSFADE_SEC = 0.2;
+// P5: 동적 모션 블렌딩 상수.
+// 글로스 경계 포즈 차이가 작으면 짧게(FADE_MIN), 크면 길게(FADE_MAX) 전환한다.
+// 가중 RMS 각거리 D (라디안)를 sqrt 곡선으로 [FADE_MIN, FADE_MAX]에 매핑.
+const FADE_MIN = 0.12;
+const FADE_MAX = 0.45;
+const D_REF    = 1.5;   // FADE_MAX에 도달하는 가중 RMS 각 (라디안)
+
+// 모션 블렌딩에 사용할 본 가중치.
+// 손목(BnMaoOrient)과 상박(BnBraco)이 시각적으로 가장 큰 기여.
+// 손가락은 root 본(BnDedo1R/L)만 포함 — handshape 차이 부족 시 Phase A 후 확장.
+const BONE_WEIGHTS = {
+  BnOmbroR: 0.6,  BnOmbroL: 0.6,
+  BnBracoR: 1.5,  BnBracoL: 1.5,
+  BnAntBracoR: 1.2, BnAntBracoL: 1.2,
+  BnMaoOrientR: 1.8, BnMaoOrientL: 1.8,
+  BnDedo1R: 0.3,  BnDedo1L: 0.3,
+  BnPescoco: 0.3,
+};
+
+// P5.1: Stroke trim 상수.
+// 각 글로스 클립을 prep(차렷→손 올림) + stroke(핵심) + recovery(손→차렷) 구조로 가정하고,
+// 활성 팔 본의 누적 angular delta가 head/tail 임계 비율에 도달하는 시점을 stroke 경계로 잡는다.
+// 큐 위치별 trim 규칙:
+//   첫 글로스: head trim 안 함 (차렷에서 자체 prep로 손을 올림)
+//   마지막 글로스: tail trim 안 함 (자체 recovery로 손을 차렷에 내림)
+//   중간 글로스: 양쪽 trim
+//   단일 글로스 큐: trim 안 함
+const STROKE_HEAD_RATIO = 0.12;   // 누적 motion 12% 시점부터 stroke
+const STROKE_TAIL_RATIO = 0.12;   // 끝 12% 미만은 recovery로 간주
+const STROKE_PAD_HEAD   = 0.05;   // anticipation 50ms 보존
+const STROKE_PAD_TAIL   = 0.05;   // settle 50ms 보존
+const MIN_STROKE_RATIO  = 0.40;   // trim 후 클립의 최소 40% 유지 (안전망)
+const STROKE_SAMPLE_N   = 60;     // motion energy 샘플 수 (~17ms 간격)
+// stroke 검출에 쓰는 활성 팔 본 (BONE_WEIGHTS와 별개로 motion intensity 측정용)
+const STROKE_BONES = [
+  'BnBracoR', 'BnBracoL',
+  'BnAntBracoR', 'BnAntBracoL',
+  'BnMaoOrientR', 'BnMaoOrientL',
+];
 
 let currentModel = null;
 let bundleIndex = null;   // {count, glosses: [{raw,key,file,duration}], failures}
@@ -358,17 +396,174 @@ function buildClipFromJson(data) {
   return new THREE.AnimationClip(data.name, data.duration, tracks);
 }
 
+// --- P5.1: 임의 시점 t에서 quaternion track sample (binary search + SLERP) ---
+function sampleQuaternionAt(track, t) {
+  const times = track.times;
+  const values = track.values;
+  const n = times.length;
+  if (n === 0) return new THREE.Quaternion();
+  if (t <= times[0]) {
+    return new THREE.Quaternion(values[0], values[1], values[2], values[3]);
+  }
+  if (t >= times[n - 1]) {
+    const i = (n - 1) * 4;
+    return new THREE.Quaternion(values[i], values[i + 1], values[i + 2], values[i + 3]);
+  }
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (times[mid] <= t) lo = mid;
+    else hi = mid;
+  }
+  const u = (t - times[lo]) / (times[hi] - times[lo]);
+  const a = new THREE.Quaternion(values[lo*4], values[lo*4+1], values[lo*4+2], values[lo*4+3]);
+  const b = new THREE.Quaternion(values[hi*4], values[hi*4+1], values[hi*4+2], values[hi*4+3]);
+  return a.slerp(b, u);
+}
+
+// --- P5.1: 클립의 t 시점에서 BONE_WEIGHTS 본의 quaternion을 Map으로 추출 ---
+function extractPoseAt(clip, t) {
+  const pose = new Map();
+  for (const track of clip.tracks) {
+    if (!(track instanceof THREE.QuaternionKeyframeTrack)) continue;
+    const dot = track.name.lastIndexOf('.');
+    if (dot < 0) continue;
+    const bone = track.name.slice(0, dot);
+    if (!(bone in BONE_WEIGHTS)) continue;
+    if (track.values.length < 4) continue;
+    pose.set(bone, sampleQuaternionAt(track, t));
+  }
+  return pose;
+}
+
+// --- P5.1: stroke 범위 검출 ---
+// STROKE_BONES의 합산 angular delta를 누적해 head/tail 임계 비율에 도달하는 시점을
+// stroke 경계로 잡는다. padding 적용 후 최소 길이로 clamp.
+// 반환: { strokeStart, strokeEnd } (둘 다 클립 내 초 단위)
+function computeStrokeRange(clip) {
+  const dur = clip.duration;
+  if (!isFinite(dur) || dur <= 0) return { strokeStart: 0, strokeEnd: 0 };
+
+  // STROKE_BONES에 해당하는 quaternion track만 모음
+  const tracks = [];
+  for (const track of clip.tracks) {
+    if (!(track instanceof THREE.QuaternionKeyframeTrack)) continue;
+    const dot = track.name.lastIndexOf('.');
+    if (dot < 0) continue;
+    const bone = track.name.slice(0, dot);
+    if (STROKE_BONES.indexOf(bone) < 0) continue;
+    if (track.values.length < 4) continue;
+    tracks.push(track);
+  }
+  if (tracks.length === 0) return { strokeStart: 0, strokeEnd: dur };
+
+  const N = STROKE_SAMPLE_N;
+  const dt = dur / (N - 1);
+  // 각 스텝의 합산 angular delta
+  const deltas = new Float32Array(N - 1);
+  const tmpA = new THREE.Quaternion();
+  const tmpB = new THREE.Quaternion();
+  for (const track of tracks) {
+    let prev = sampleQuaternionAt(track, 0);
+    for (let i = 1; i < N; i++) {
+      const t = i * dt;
+      const cur = sampleQuaternionAt(track, t);
+      const d = Math.min(1, Math.abs(prev.dot(cur)));
+      const angle = 2 * Math.acos(d);
+      deltas[i - 1] += angle;
+      prev = cur;
+    }
+  }
+
+  // 누적 합으로 head/tail 임계 도달 인덱스 검출
+  let total = 0;
+  for (let i = 0; i < deltas.length; i++) total += deltas[i];
+  if (total === 0) return { strokeStart: 0, strokeEnd: dur };
+
+  const headLimit = total * STROKE_HEAD_RATIO;
+  const tailLimit = total * (1 - STROKE_TAIL_RATIO);
+  let cum = 0;
+  let headIdx = 0;
+  let tailIdx = deltas.length - 1;
+  let foundHead = false;
+  let foundTail = false;
+  for (let i = 0; i < deltas.length; i++) {
+    cum += deltas[i];
+    if (!foundHead && cum >= headLimit) {
+      headIdx = i;
+      foundHead = true;
+    }
+    if (!foundTail && cum >= tailLimit) {
+      tailIdx = i;
+      foundTail = true;
+    }
+  }
+
+  let strokeStart = headIdx * dt + STROKE_PAD_HEAD;
+  let strokeEnd   = (tailIdx + 1) * dt - STROKE_PAD_TAIL;
+  if (strokeStart < 0) strokeStart = 0;
+  if (strokeEnd > dur) strokeEnd = dur;
+  if (strokeEnd <= strokeStart) {
+    strokeStart = 0;
+    strokeEnd = dur;
+  }
+
+  // 안전망: trim 후 최소 비율 보장 (중심 기준 확장)
+  const minLen = dur * MIN_STROKE_RATIO;
+  if (strokeEnd - strokeStart < minLen) {
+    const center = (strokeStart + strokeEnd) / 2;
+    strokeStart = Math.max(0, center - minLen / 2);
+    strokeEnd   = Math.min(dur, strokeStart + minLen);
+    if (strokeEnd - strokeStart < minLen) {
+      strokeStart = Math.max(0, strokeEnd - minLen);
+    }
+  }
+
+  return { strokeStart, strokeEnd };
+}
+
+// --- P5: 경계 포즈 차이 → 전환 시간 ---
+// BONE_WEIGHTS를 사용한 가중 RMS 각거리를 계산하고 sqrt 곡선으로
+// [FADE_MIN, FADE_MAX] 범위에 매핑.
+function computeTransitionDuration(prevEnd, nextStart) {
+  if (!prevEnd || !nextStart) return FADE_MIN;
+  let sumW = 0, sumWA2 = 0;
+  for (const bone in BONE_WEIGHTS) {
+    const qa = prevEnd.get(bone);
+    const qb = nextStart.get(bone);
+    if (!qa || !qb) continue;
+    const w = BONE_WEIGHTS[bone];
+    const d = Math.min(1, Math.abs(qa.dot(qb)));
+    const angle = 2 * Math.acos(d);   // 라디안 ∈ [0, π]
+    sumWA2 += w * angle * angle;
+    sumW += w;
+  }
+  if (sumW === 0) return FADE_MIN;
+  const D = Math.sqrt(sumWA2 / sumW);           // 가중 RMS 각
+  const t = Math.min(1, Math.sqrt(D / D_REF));
+  return FADE_MIN + (FADE_MAX - FADE_MIN) * t;
+}
+
 // --- Fetch a single bundle-index entry as a clip object ---
 async function fetchClipFromEntry(entry, rawOverride) {
   try {
     const resp = await fetch(BUNDLE_BASE + entry.file);
     if (!resp.ok) return null;
     const data = await resp.json();
+    const clip = buildClipFromJson(data);
+    // P5.1: stroke 범위 검출 후 stroke 시점에서 boundary pose sample.
+    // P5 Phase A의 t=0/t=duration 직접 읽기는 차렷 quaternion이라 거리 계산이 부정확.
+    // stroke start/end 시점의 quaternion이 실제 우리가 보간하는 위치라 더 의미적임.
+    const stroke = computeStrokeRange(clip);
     return {
       key: entry.key,
       raw: rawOverride != null ? rawOverride : entry.raw,
-      clip: buildClipFromJson(data),
+      clip,
       duration: data.duration,
+      strokeStart: stroke.strokeStart,
+      strokeEnd: stroke.strokeEnd,
+      startPose: extractPoseAt(clip, stroke.strokeStart),
+      endPose: extractPoseAt(clip, stroke.strokeEnd),
     };
   } catch (e) {
     console.error(`Failed to fetch clip for ${entry.key}:`, e);
@@ -540,10 +735,21 @@ function flashInputError() {
 }
 
 // --- Compute total wall-clock duration for the queue (overlap-adjusted) ---
+// P5.1: 각 글로스의 effective 길이(effectiveEnd - effectiveStart)를 합산하고
+// 인접 쌍 nextFadeSec overlap을 차감.
 function computeTotalDuration(entries) {
   if (!entries || entries.length === 0) return 0;
-  const sum = entries.reduce((s, e) => s + e.duration, 0);
-  return Math.max(0, sum - CROSSFADE_SEC * (entries.length - 1));
+  let sum = 0;
+  for (const e of entries) {
+    const eEnd = e.effectiveEnd ?? e.duration;
+    const eStart = e.effectiveStart ?? 0;
+    sum += Math.max(0, eEnd - eStart);
+  }
+  let overlap = 0;
+  for (let i = 0; i < entries.length - 1; i++) {
+    overlap += entries[i].nextFadeSec || 0;
+  }
+  return Math.max(0, sum - overlap);
 }
 
 // --- Fully dispose the current mixer + queueActions (safe to call anytime) ---
@@ -584,6 +790,51 @@ function rebuildActionsForCurrentModel() {
     action.enabled = true;
     return { ...entry, action, _fadeStarted: false };
   });
+
+  // P5.1: 큐 위치별 effective 재생 범위 결정.
+  //   단일 글로스: trim 안 함 (차렷 → 글로스 → 차렷 자체 재생)
+  //   첫 글로스:   head trim 안 함 (차렷에서 자체 prep로 손을 올림)
+  //   마지막 글로스: tail trim 안 함 (자체 recovery로 차렷 복귀)
+  //   중간 글로스: 양쪽 trim
+  const N = queueActions.length;
+  for (let i = 0; i < N; i++) {
+    const q = queueActions[i];
+    const dur = q.duration;
+    const ss = q.strokeStart ?? 0;
+    const se = q.strokeEnd ?? dur;
+    if (N === 1) {
+      q.effectiveStart = 0;
+      q.effectiveEnd = dur;
+    } else if (i === 0) {
+      q.effectiveStart = 0;
+      q.effectiveEnd = se;
+    } else if (i === N - 1) {
+      q.effectiveStart = ss;
+      q.effectiveEnd = dur;
+    } else {
+      q.effectiveStart = ss;
+      q.effectiveEnd = se;
+    }
+  }
+
+  // P5: 각 인접 쌍의 동적 전환 시간을 미리 계산.
+  // 마지막 엔트리는 outgoing transition이 없으므로 0.
+  // boundary pose는 이미 stroke 시점에서 sample됐으므로 그대로 사용.
+  for (let i = 0; i < N - 1; i++) {
+    queueActions[i].nextFadeSec = computeTransitionDuration(
+      queueActions[i].endPose,
+      queueActions[i + 1].startPose
+    );
+  }
+  if (N > 0) {
+    queueActions[N - 1].nextFadeSec = 0;
+  }
+  if (window.__debugBlend) {
+    console.log('[P5.1] queue:', queueActions.map(q =>
+      `${q.raw}[${q.effectiveStart.toFixed(2)}→${q.effectiveEnd.toFixed(2)}/${q.duration.toFixed(2)}s, fade ${(q.nextFadeSec*1000).toFixed(0)}ms]`
+    ).join(' | '));
+  }
+
   totalDuration = computeTotalDuration(queueActions);
 
   onMixerFinished = (e) => {
@@ -628,6 +879,8 @@ function restartQueueFromStart() {
   }
   currentIdx = 0;
   const first = queueActions[0];
+  // P5.1: 첫 액션은 effectiveStart 시점부터 재생 (단일/첫 글로스는 0이지만 명시적)
+  first.action.time = first.effectiveStart || 0;
   first.action.play();
   mixer.update(0);
   isPlaying = true;
@@ -724,11 +977,16 @@ function updateTimeline() {
   const curr = queueActions[currentIdx];
   if (!curr) return;
 
-  // Elapsed = sum of finished clip durations - overlap + current clip time
+  // Elapsed = sum of finished effective lengths - per-pair overlap + current effective offset
+  // P5.1: 각 글로스의 effective 길이(strokeEnd - strokeStart 등)와 nextFadeSec overlap 합산
   let elapsed = 0;
-  for (let i = 0; i < currentIdx; i++) elapsed += queueActions[i].duration;
-  elapsed -= CROSSFADE_SEC * currentIdx;
-  elapsed += curr.action.time;
+  for (let i = 0; i < currentIdx; i++) {
+    const ei = queueActions[i];
+    const len = (ei.effectiveEnd ?? ei.duration) - (ei.effectiveStart ?? 0);
+    elapsed += Math.max(0, len);
+    elapsed -= ei.nextFadeSec || 0;
+  }
+  elapsed += Math.max(0, curr.action.time - (curr.effectiveStart ?? 0));
   if (elapsed < 0) elapsed = 0;
   if (elapsed > totalDuration) elapsed = totalDuration;
 
@@ -967,17 +1225,21 @@ function animate() {
 
     // Queue crossfade scheduling: when current clip enters its trailing window,
     // start the next action and crossfade into it.
+    // P5.1: timeLeft는 effectiveEnd 기준 (clip 끝이 아님). 다음 액션은 effectiveStart부터 재생.
     if (queueActions.length > 0 && currentIdx < queueActions.length) {
       const curr = queueActions[currentIdx];
       if (curr && !curr._fadeStarted && currentIdx + 1 < queueActions.length) {
-        const timeLeft = curr.duration - curr.action.time;
-        if (timeLeft <= CROSSFADE_SEC) {
+        const fadeSec = curr.nextFadeSec ?? FADE_MIN;
+        const effectiveEnd = curr.effectiveEnd ?? curr.duration;
+        const timeLeft = effectiveEnd - curr.action.time;
+        if (timeLeft <= fadeSec) {
           const next = queueActions[currentIdx + 1];
           next.action.reset();
+          next.action.time = next.effectiveStart || 0;   // P5.1: stroke 시작점부터
           next.action.enabled = true;
           next.action.setEffectiveWeight(1);
           next.action.play();
-          curr.action.crossFadeTo(next.action, CROSSFADE_SEC, false);
+          curr.action.crossFadeTo(next.action, fadeSec, false);
           curr._fadeStarted = true;
         }
       }
