@@ -221,6 +221,27 @@
   - **다음 단계**: UI prep 완료 → 여러 글로스 × Method A/B/C/D 시각 비교, 배치 문장 5개 이상 육안 평가, 대안 B(full clip smart crossfade) / C(hand-trajectory IK) / D(hold plateau) 실험 가치 판단
   - **Plan 파일**: `C:\Users\admin\.claude\plans\keen-yawning-ullman.md`
 
+- **프리셋 문장 5개 + VLibras 토큰 파서 추가** (`public/players/sentence-stroke-test/index.html` 이어서 편집)
+  - **배경**: UI 정리 끝나고 실제 모션 연결 평가에 들어가는데 매번 포르투갈어를 타이핑하는 건 비효율 + 무작위 문장은 비교 조건이 흔들림. 27 글로스 안에서 재생 가능하면서 페어별 전환 다양성을 노린 **고정 프리셋 5개**가 필요.
+  - **UI 추가 (컨트롤 바 주 행, translate-btn과 model-selector 사이)**: `<select id="preset-select">` + CSS(기존 sentence-input 스타일과 조화, min-width 210 / max-width 280). 옵션 5개는 JS의 `PRESET_SENTENCES = [{pt, en}, ...]`에서 populate — `"N. Portuguese — English"` 포맷으로 표시. 선택 시 `sentenceInputEl.value = preset.pt` + focus + 드롭다운 placeholder 리셋 (재선택 허용).
+  - **프리셋 문장 최종 구성**:
+    1. `Bom dia amigo` / *Good day, friend* → BOM DIA AMIGO (3 글로스, 인사 체인)
+    2. `Eu quero beber água.` / *I want to drink water.* → QUERER BEBER ÁGUA (3 글로스; VLibras가 EU 드롭)
+    3. `Você gosta de estudar?` / *Do you like studying?* → VOCÊ GOSTAR ESTUDAR (3 글로스; de 드롭)
+    4. `Eu moro na casa.` / *I live in the house.* → MORAR CASA (2 글로스; EU와 na 드롭)
+    5. `Obrigado, muito bom!` / *Thank you, very good!* → OBRIGADO BOM (2 글로스; 컴파운드/강도/감탄 정리 후)
+  - **VLibras 토큰 파서 신설** (`normalizeVlibrasTokens`, `translateSentence`가 호출): 실측 API 응답에 세 가지 비-글로스 잡음 발견 — `[PONTO]`/`[INTERROGAÇÃO]`/`[EXCLAMAÇÃO]` 문장부호 마커, `BOM(+)` 등 강도 수식자, `OBRIGADO&AGRADECIMENTO` 동의어 컴파운드. 이 세 패턴을 정규화:
+    - `/^\[[^\]]+\]$/` 매칭 토큰은 drop (punctuation marker, 애니메이션 없음)
+    - `A&B` 컴파운드는 첫 토큰만 유지 (primary synonym)
+    - 꼬리 괄호 `\([^)]*\)$`는 strip (강도 annotation, 기본 글로스로 재생)
+    - 셋 다 VLibras의 안정적인 annotation 관습이라 번들 매칭에 해가 없고, **사용자가 자유롭게 입력한 문장(마침표/물음표/느낌표 포함)에도 혜택**을 준다.
+  - **Playwright 검증**:
+    - 5문장 실 API 호출 → 모두 정규화 후 27-bundle 범위 내, missing 0건
+    - 프리셋 #5 (`Obrigado, muito bom!`) 전체 플로우: 드롭다운 선택 → input 채움 → 번역&배치 클릭 → 콘솔 `translated → OBRIGADO BOM` → 배치 재생 `OBRIGADO[0.267→1.903/2.13s] BOM[0.233→1.597/1.80s]` → advance → end, JS 에러 0
+    - 드롭다운 재선택 가능 (placeholder 리셋 확인)
+  - **결정**: 프리셋 선택은 **API 경로 그대로** (production 동작과 일치). 사전 고정 글로스 배열로 우회하지 않음. 파서는 UI 플로우 전반에 적용되어 user-typed 문장도 혜택.
+  - **Plan 파일**: `C:\Users\admin\.claude\plans\keen-yawning-ullman.md` (2번째 plan 덮어씀)
+
 ### 2026-04-15
 - **Stroke 검증 전용 테스트 플레이어 신설** (`public/players/sentence-stroke-test/index.html`, ~1200 라인, `sentence/index.html` 수정 없음)
   - **배경**: P5.1 Stroke Trim 출시 후 사용자가 "Sim bom dia 배치에서 BOM이 손이 많이 내려올 때까지 재생된다"고 보고. Production 코드는 튜닝/실험 위험 → 격리된 검증 도구 필요.

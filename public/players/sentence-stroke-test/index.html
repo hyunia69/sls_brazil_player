@@ -74,6 +74,23 @@
   #translate-btn:active { transform: translateY(1px); }
   #translate-btn:disabled { background: #555; border-color: #555; cursor: not-allowed; }
 
+  #preset-select {
+    padding: 8px 10px;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.08);
+    color: #eee;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    outline: none;
+    min-width: 210px;
+    max-width: 280px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  #preset-select:focus { border-color: #4361ee; background: rgba(255,255,255,0.12); }
+  #preset-select option { background: #1a1a2e; color: #eee; }
+
   #word-input {
     width: 180px;
     padding: 8px 14px;
@@ -417,6 +434,9 @@
     <h1>Stroke Test</h1>
     <input type="text" id="sentence-input" placeholder="문장 입력 (예: Oi amigo, você quer comer?)" autocomplete="off" />
     <button id="translate-btn" type="button" title="VLibras 번역 API 호출 후 배치 재생">번역 &amp; 배치</button>
+    <select id="preset-select" title="테스트 문장 프리셋 (선택 시 입력란에 채움)">
+      <option value="" selected>— 테스트 문장 선택 —</option>
+    </select>
     <div class="model-selector">
       <button class="model-btn active" data-model="padrao_tex">Padrao</button>
       <button class="model-btn" data-model="casa_tex">CASA</button>
@@ -557,6 +577,18 @@ const BUNDLE_BASE = '/animations/vlibras/bundles/';
 const TRANSLATE_URL = 'https://traducao2.vlibras.gov.br/translate';
 const EXCLUDE_NAMES = ['Icosphere'];
 
+// Preset test sentences for motion-continuity evaluation.
+// Selecting one fills sentence-input with the Portuguese text; the user
+// then presses '번역 & 배치' to run the normal VLibras API path so the
+// test matches production translation behavior.
+const PRESET_SENTENCES = [
+  { pt: 'Bom dia amigo',          en: 'Good day, friend' },
+  { pt: 'Eu quero beber água.',   en: 'I want to drink water.' },
+  { pt: 'Você gosta de estudar?', en: 'Do you like studying?' },
+  { pt: 'Eu moro na casa.',       en: 'I live in the house.' },
+  { pt: 'Obrigado, muito bom!',   en: 'Thank you, very good!' },
+];
+
 // SYNC: public/players/sentence/index.html:331-342 (Method A baseline constants)
 const STROKE_PAD_HEAD   = 0.05;
 const STROKE_PAD_TAIL   = 0.05;
@@ -637,6 +669,7 @@ const METHOD_COLORS = { A: '#8fe8a0', B: '#c39ce0', C: '#ff9c47', D: '#ffcc33' }
 const loadingEl = document.getElementById('loading');
 const sentenceInputEl = document.getElementById('sentence-input');
 const translateBtnEl = document.getElementById('translate-btn');
+const presetSelectEl = document.getElementById('preset-select');
 const wordInputEl = document.getElementById('word-input');
 const loadBtnEl = document.getElementById('load-btn');
 const modeFullBtnEl = document.getElementById('mode-full');
@@ -1447,6 +1480,24 @@ function runBatch(glosses, label) {
 }
 
 // --- VLibras translate API → gloss list → batch playback ---
+// Normalize VLibras translation tokens into playable gloss candidates:
+//  - [PONTO] / [INTERROGAÇÃO] / [EXCLAMAÇÃO] bracketed punctuation → drop entirely
+//  - TOKEN(+) / TOKEN(-) trailing parenthesised intensity → strip, keep base gloss
+//  - A&B synonym compounds → keep first (primary) synonym
+// These are stable VLibras annotation conventions, not lexical glosses, so they
+// never correspond to bundle entries; stripping is always safe.
+function normalizeVlibrasTokens(tokens) {
+  return tokens
+    .map(t => {
+      if (/^\[[^\]]+\]$/.test(t)) return null;
+      const amp = t.indexOf('&');
+      if (amp > 0) t = t.slice(0, amp);
+      t = t.replace(/\([^)]*\)$/, '');
+      return t.trim();
+    })
+    .filter(Boolean);
+}
+
 async function translateSentence(text) {
   const resp = await fetch(TRANSLATE_URL, {
     method: 'POST',
@@ -1455,7 +1506,8 @@ async function translateSentence(text) {
   });
   if (!resp.ok) throw new Error(`Translate failed: ${resp.status}`);
   const raw = (await resp.text()).trim();
-  return raw ? raw.split(/\s+/).filter(Boolean) : [];
+  if (!raw) return [];
+  return normalizeVlibrasTokens(raw.split(/\s+/).filter(Boolean));
 }
 
 async function onTranslateAndBatch() {
@@ -1696,6 +1748,24 @@ wordInputEl.addEventListener('keydown', (e) => {
   }
 });
 translateBtnEl.addEventListener('click', onTranslateAndBatch);
+
+// Populate preset dropdown from PRESET_SENTENCES and wire selection → fill input
+PRESET_SENTENCES.forEach((p, i) => {
+  const opt = document.createElement('option');
+  opt.value = String(i);
+  opt.textContent = `${i + 1}. ${p.pt}  —  ${p.en}`;
+  presetSelectEl.appendChild(opt);
+});
+presetSelectEl.addEventListener('change', (e) => {
+  const idx = Number(e.target.value);
+  if (!Number.isFinite(idx)) return;
+  const preset = PRESET_SENTENCES[idx];
+  if (!preset) return;
+  sentenceInputEl.value = preset.pt;
+  sentenceInputEl.focus();
+  e.target.value = ''; // reset so the same option can be re-selected later
+});
+
 sentenceInputEl.addEventListener('keydown', (e) => {
   if (e.code === 'Enter') { e.preventDefault(); onTranslateAndBatch(); }
 });
