@@ -24,7 +24,8 @@
     gap: 10px;
     flex-wrap: wrap;
   }
-  .controls-row.secondary {
+  .controls-row.secondary,
+  .controls-row.preset {
     padding-top: 4px;
     border-top: 1px solid rgba(255,255,255,0.08);
   }
@@ -290,7 +291,10 @@
 
   /* Compare panel (chart + A/B/C/D methods) */
   #compare-panel {
-    position: fixed; top: 112px; right: 16px;
+    position: fixed;
+    top: 340px;
+    left: 16px;
+    right: auto;
     width: 524px;
     padding: 12px 14px;
     background: rgba(0,0,0,0.68);
@@ -299,7 +303,7 @@
     border: 1px solid rgba(255,255,255,0.08);
     font-size: 11px;
     z-index: 10;
-    max-height: calc(100vh - 250px);
+    max-height: calc(100vh - 340px - 120px);
     overflow-y: auto;
   }
   .panel-title {
@@ -434,16 +438,19 @@
     <h1>Stroke Test</h1>
     <input type="text" id="sentence-input" placeholder="문장 입력 (예: Oi amigo, você quer comer?)" autocomplete="off" />
     <button id="translate-btn" type="button" title="VLibras 번역 API 호출 후 배치 재생">번역 &amp; 배치</button>
-    <select id="preset-select" title="테스트 문장 프리셋 (선택 시 입력란에 채움)">
-      <option value="" selected>— 테스트 문장 선택 —</option>
-    </select>
     <div class="model-selector">
       <button class="model-btn active" data-model="padrao_tex">Padrao</button>
       <button class="model-btn" data-model="casa_tex">CASA</button>
       <button class="model-btn" data-model="icaro">Icaro</button>
+      <button id="vlibras-toggle" class="model-btn" type="button" title="VLibras 공식 위젯 표시/숨김">🤟 위젯</button>
     </div>
   </div>
-  <div class="controls-row secondary">
+  <div class="controls-row preset">
+    <span class="sub-label">테스트 문장</span>
+    <select id="preset-select" title="테스트 문장 프리셋 (선택 시 입력란에 채움)">
+      <option value="" selected>— 테스트 문장 선택 —</option>
+    </select>
+    <div class="divider"></div>
     <span class="sub-label">단일 글로스 분석</span>
     <input type="text" id="word-input" placeholder="단어 (예: SIM, BOM)" autocomplete="off" />
     <button id="load-btn" type="button">로드</button>
@@ -1259,6 +1266,7 @@ async function loadModel(name) {
 
   infoModelEl.textContent = name;
   document.querySelectorAll('.model-btn').forEach(btn => {
+    if (btn.id === 'vlibras-toggle') return;
     btn.classList.toggle('active', btn.dataset.model === name);
   });
 
@@ -1524,6 +1532,7 @@ async function onTranslateAndBatch() {
       return;
     }
     console.log(`[stroke-test] translated → ${glosses.join(' ')}`);
+    syncToVLibrasPlugin(text);  // fire-and-forget; 토글 OFF면 내부에서 즉시 return
     runBatch(glosses, text);
   } catch (e) {
     showError(`번역 실패: ${e.message}`);
@@ -1802,6 +1811,7 @@ stopBtnEl.addEventListener('click', () => {
 });
 
 document.querySelectorAll('.model-btn').forEach(btn => {
+  if (btn.id === 'vlibras-toggle') return;
   btn.addEventListener('click', () => loadModel(btn.dataset.model));
 });
 
@@ -1862,6 +1872,84 @@ window.__strokeTest = {
   }),
 };
 
+// --- VLibras 공식 위젯 동기화 ---
+// 토글 ON일 때만 같은 텍스트를 플러그인 경로(Plugin.prototype.translate)로 흘려보낸다.
+// 메인 Three.js 파이프라인은 절대 건드리지 않고, 실패해도 throw하지 않는다.
+async function syncToVLibrasPlugin(text) {
+  try {
+    const wrapper = document.querySelector('[vw]');
+    if (!wrapper || !wrapper.classList.contains('enabled')) return;  // 토글 OFF
+    const trimmed = (text || '').trim();
+    if (!trimmed) return;
+    const plugin = await waitForVlibrasPlugin(2500);
+    if (!plugin) {
+      if (!syncToVLibrasPlugin._warned) {
+        console.warn('[vlibras-sync] Plugin instance not available; widget runs independently.');
+        syncToVLibrasPlugin._warned = true;
+      }
+      return;
+    }
+    if (typeof plugin.translate === 'function') {
+      try {
+        plugin.translate(trimmed);
+        return;
+      } catch (err) {
+        console.warn('[vlibras-sync] plugin.translate threw:', err);
+      }
+    }
+    if (plugin.player && typeof plugin.player.translate === 'function') {
+      try {
+        plugin.player.translate(trimmed);
+        return;
+      } catch (err) {
+        console.warn('[vlibras-sync] plugin.player.translate threw:', err);
+      }
+    }
+    console.warn('[vlibras-sync] No translate method available on plugin instance.');
+  } catch (err) {
+    console.warn('[vlibras-sync] Unexpected error (ignored):', err);
+  }
+}
+function waitForVlibrasPlugin(timeoutMs) {
+  return new Promise((resolve) => {
+    if (window.plugin) { resolve(window.plugin); return; }
+    const start = Date.now();
+    const interval = setInterval(() => {
+      if (window.plugin) { clearInterval(interval); resolve(window.plugin); return; }
+      if (Date.now() - start >= timeoutMs) { clearInterval(interval); resolve(null); }
+    }, 50);
+  });
+}
+
+// --- VLibras 공식 위젯 토글 ---
+// 토글은 wrapper.enabled 클래스만 관리한다. 첫 ON에서는 access-button 클릭을 1회 디스패치해
+// 플러그인 인스턴스를 미리 생성한다 (Unity lazy 로드 트리거).
+const VLIBRAS_TOGGLE_KEY = 'vlibrasPluginEnabled';
+const vlibrasToggleBtn = document.getElementById('vlibras-toggle');
+function setVlibrasPluginEnabled(enabled) {
+  const wrapper = document.querySelector('[vw]');
+  if (!wrapper) return;
+  wrapper.classList.toggle('enabled', enabled);
+  vlibrasToggleBtn.classList.toggle('active', enabled);
+  if (enabled && !window.plugin) {
+    const accessBtn = document.querySelector('[vw-access-button]');
+    if (accessBtn) {
+      try { accessBtn.click(); } catch (_) { /* noop */ }
+    }
+  }
+  try { localStorage.setItem(VLIBRAS_TOGGLE_KEY, String(enabled)); } catch (_) { /* private mode */ }
+}
+vlibrasToggleBtn.addEventListener('click', () => {
+  const wrapper = document.querySelector('[vw]');
+  const enabled = !wrapper?.classList.contains('enabled');
+  setVlibrasPluginEnabled(enabled);
+});
+try {
+  if (localStorage.getItem(VLIBRAS_TOGGLE_KEY) === 'true') {
+    setVlibrasPluginEnabled(true);
+  }
+} catch (_) { /* private mode */ }
+
 // --- Init ---
 try {
   await loadBundleIndex();
@@ -1873,6 +1961,22 @@ try {
   showError(`초기화 실패: ${e.message}`);
   loadingEl.classList.add('hidden');
 }
+</script>
+
+<!-- VLibras 공식 위젯 (CDN). 토글 OFF가 기본; #vlibras-toggle로 표시/숨김. -->
+<div vw>
+  <div vw-access-button></div>
+  <div vw-plugin-wrapper>
+    <div class="vw-plugin-top-wrapper"></div>
+  </div>
+</div>
+<script src="https://vlibras.gov.br/app/vlibras-plugin.js"></script>
+<script>
+  new window.VLibras.Widget({
+    rootPath: 'https://vlibras.gov.br/app',
+    position: 'R',
+    opacity: 1
+  });
 </script>
 </body>
 </html>
