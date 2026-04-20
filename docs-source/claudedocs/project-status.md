@@ -22,13 +22,46 @@
 | **Sentence Player ↔ VLibras 공식 위젯 sync** | ✅ 완료 (2026-04-14) | `public/players/sentence/index.html` (`#vlibras-toggle` + `syncToVLibrasPlugin`) |
 | **Sentence Player 동적 모션 블렌딩 (P5 Phase A)** | ✅ 완료 (2026-04-14) | `public/players/sentence/index.html` (`computeTransitionDuration`, `BONE_WEIGHTS`) |
 | **Sentence Player Stroke Trim (P5.1)** | ✅ 완료 (2026-04-14) | `public/players/sentence/index.html` (`computeStrokeRange`, `extractPoseAt`, `effectiveStart/End`, `STROKE_*`) |
-| **Stroke Verification Tool** | ✅ 완료 (2026-04-15) | `public/players/sentence-stroke-test/index.html` (4-method 비교 + motion profile 차트 + 배치 crossfade) |
+| **Stroke Verification Tool** | ✅ 완료 (2026-04-15), UI 정리 + profile 동기화 (2026-04-20) | `public/players/sentence-stroke-test/index.html` (4-method 비교 + motion profile 차트 + 배치 crossfade + 글로스 칩 UI + 배치 sync) |
 | **Bundle 사전 변환기** | ✅ 완료 (27 글로스) | `tools/vlibras2slmb/batch/precompute_threejs.py` |
 | Model Viewer | ✅ 완료 | `public/players/viewer/` |
 | VLibras→SLMB 변환기 | 🔄 매핑 완료, 파이프라인 미완 | `tools/vlibras2slmb/` |
 | 랜딩 페이지 | ✅ 완료 | `public/index.html` |
 | 문서 페이지 | ✅ 완료 | `public/docs/` |
 | Vercel 배포 | ✅ 완료 | Git push 자동 배포 |
+
+---
+
+## 오늘의 작업 중점 (2026-04-20)
+
+**집중 대상**: `public/players/sentence-stroke-test/` (http://localhost:8080/players/sentence-stroke-test/)
+
+**목표**: 모션 블렌딩 전략의 근본 재검토. 현행(stroke trim + crossfade — P5.1 production은 Method A, 검증 도구는 Method C 권장)이 적절한지 원점에서 평가하고, 대안을 탐색한다.
+
+**핵심 질문**
+1. **Stroke 기반 단어 연결이 옳은 방향인가?** prep/recovery를 잘라내면 차렷 왕복 dead time은 줄지만, 각 글로스의 자연스러운 리듬(수어 고유 accent/beat, hold, 방향성)이 훼손될 가능성. 시각 검증이 필요하다.
+2. **검토할 대안**
+   - **(A) 현행**: stroke trim + Three.js native crossfade (Method A/B/C/D 비교)
+   - **(B) Full clip + smart crossfade**: 이전 글로스 recovery와 다음 글로스 prep을 겹쳐 recovery가 prep에 자연스럽게 녹아들게
+   - **(C) Hand-trajectory 보간**: 글로스 사이 손목 world position을 Cubic Bezier/Catmull-Rom으로 직접 보간, 2-bone IK로 팔꿈치 해석. "차렷 미하강"을 기하학적으로 보장
+   - **(D) Hold plateau 브리지**: stroke 종점에서 손을 짧게 hold(수어 자연 hold 구간)한 뒤 다음 prep으로 전환
+3. **P5.2(Method C production 적용 결정) 진행 전에 전제부터 재점검**
+
+**세션 계획**
+1. `sentence-stroke-test/`에서 다양한 글로스(CASA/ESCOLA/AGUA/VOCE/AMIGO/TRABALHO + SIM/BOM/DIA) × Method A/B/C/D 시각 비교
+2. 스파이크 문장 5개 이상 배치 재생 육안 평가 — stroke 연결의 자연스러움, 글로스 accent 보존도, 손 궤적 연속성
+3. 대안 B/C/D 중 실험 가치가 있는 방향 식별 → 검증 도구에 실험 분기 추가할지 결정
+4. 결론에 따라 P5.2 진행/보류/재정의, 필요 시 P5 Phase B 재설계
+
+**산출물**
+- 검증 관찰 요약 → 작업 이력 `### 2026-04-20` 추가
+- Stroke 전략 유지/변경/보강 결정
+- 결정 반영한 "다음 세션 작업" 재배열
+
+**진행 상황 (2026-04-20)**
+- ✅ **UI 정리 완료**: `sentence-stroke-test/index.html` 2단 컨트롤 + "번역 & 배치" 주 동선 + 단일 글로스 분석 보조 동선, "Sim bom dia" 하드코딩 버튼 제거
+- ✅ **Motion profile 동기화 완료**: 배치 진행에 따라 현재 재생 글로스의 profile을 자동 표시, 글로스 칩 UI 추가 (칩 클릭 시 단일 분석으로 override)
+- ⏳ **평가 남음**: 다양한 글로스(CASA/ESCOLA/AGUA/VOCE/AMIGO/TRABALHO 등) × Method A/B/C/D 시각 비교, 배치 5문장 육안 평가, 대안 B/C/D 검토
 
 ---
 
@@ -158,6 +191,35 @@
 ---
 
 ## 작업 이력
+
+### 2026-04-20
+- **Sentence Stroke Test 페이지 UI 정리 + motion profile 배치 동기화** (`public/players/sentence-stroke-test/index.html` 단일 파일)
+  - **배경**: 오늘의 중점 작업 "모션 블렌딩 전략 재검토" 준비 단계. 사용자가 페이지를 열고 "상단 [로드] 버튼과 [Sim bom dia] 버튼이 무엇인지, motion profile이 왜 비어있는지" 지적. 세 가지 불명확 지점 진단:
+    1. 컨트롤 바에 `[번역 & 배치]`, `[로드]`, `[Sim bom dia]` 3버튼이 동등 노출돼 주 동선 모호
+    2. `[Sim bom dia]` = `['SIM','BOM','DIA']` 하드코딩 프리셋으로 번역 API만 스킵. 번역 입력과 결과 동일 → 잔여 디버그 버튼
+    3. `renderChart()`가 `currentProfile` 있을 때만 그리는데 `currentProfile`은 `loadWordClip()`(단일 로드 경로)에서만 설정. `_runBatch`는 건드리지 않아 배치 재생 후에도 차트 비어있음
+  - **UI 재구성**:
+    - `#controls` 단일 행 → `display: flex-direction: column` + `.controls-row` 2단 (주: `sentence-input` + `번역 & 배치` + 모델 선택기 / 보조: `단일 글로스 분석` 라벨 + `word-input` + `로드`)
+    - `#batch-btn` 버튼 제거, `runBatchSimBomDia()` 함수 제거, `batchBtnEl` DOM 참조와 이벤트/disabled 토글 전부 정리
+    - `#error-banner` top 62→108, `#info`/`#compare-panel` top 66→112, `#compare-panel` max-height `calc(100vh - 250px)`로 두 행 컨트롤 바에 맞춰 조정
+  - **글로스 칩 UI 신설**:
+    - `#error-banner` 아래 `#gloss-chips` 컨테이너 + `.chip`/`.chip.active`/`.chip-missing` CSS (primary #ff9c47 활성, 미매칭은 빨강 ⚠️)
+    - `#gloss-chips:empty { display: none }`로 초기·미사용 시 자동 숨김
+    - `renderGlossChips(items, missing)`/`highlightChip(idx)`/`clearChipActive()`/`clearGlossChips()` 헬퍼
+    - 칩 클릭 delegation: 매칭 칩 클릭 시 `loadWordClip(raw)` 호출 (배치 실행 중이면 `endBatch()` 선행) — 단일 분석으로 override
+  - **Motion profile ↔ 배치 동기화**:
+    - `_runBatch`의 fetchResults가 반환하는 item에 `profile` 첨부 (재계산 회피)
+    - 신설 `syncInspectionToBatchItem(idx)` = `batchQueue[idx]`의 clip/duration/raw/profile을 `currentClip`/`currentDuration`/`currentRaw`/`currentProfile`에 반영 → `recomputeAllMethods` + `applyActiveMethod` + `renderChart` + `highlightChip`
+    - 호출 지점: `_runBatch`의 첫 action play 직후(idx=0), animate 루프의 `batchCurrentIdx += 1` 직후(새 idx). `endBatch`가 `clearChipActive()` 호출해 배치 종료 시 칩 강조 해제 (차트는 마지막 글로스 유지 — 종료 후에도 검사 가능)
+    - 단일 "로드" 경로(`loadBtnEl` click + `wordInputEl` Enter)는 `clearGlossChips()`로 이전 번역 칩 정리. 칩 클릭 경로는 칩 유지 → 다른 칩 연속 클릭 가능
+  - **Playwright 검증**:
+    - 페이지 로드 정상, 번들 27 글로스 + 모델 로드 완료, JS 에러 0 (favicon 404만)
+    - 주 동선: `sentence-input`에 `Sim bom dia` → `번역 & 배치` → `translated → SIM BOM DIA` 로그 → 칩 `[SIM][BOM][DIA]` 렌더링 + 차트 26 child (3 path + 13 line) 그려짐. `batch advance → BOM @ 0.433s` / `→ DIA @ 0.483s` 로그로 sync 호출 확인. 배치 종료 시 차트는 DIA profile 유지 (Method A [0.284, 2.055] 77.0%, B [0.156, 2.261] 91.5%, C [0.234, 1.364] 49.2%, D [0.156, 0.507] 15.3%)
+    - 칩 클릭 override: SIM 칩 클릭 → `activeChip=SIM` + `infoWord=SIM (SIM)` + Method A `[0.338, 3.062] 80.1%`로 즉시 전환
+    - 단일 로드 회귀: `word-input=AGUA` + `로드` → 칩 컨테이너 display:none + `infoWord=ÁGUA (AGUA)` + Method A `[0.372, 3.364] 78.7%`로 차트 재렌더
+  - **영향 범위**: 단일 파일 변경. `public/players/sentence/index.html`(P5.1 production) 및 기타 플레이어·공용 모듈 무영향
+  - **다음 단계**: UI prep 완료 → 여러 글로스 × Method A/B/C/D 시각 비교, 배치 문장 5개 이상 육안 평가, 대안 B(full clip smart crossfade) / C(hand-trajectory IK) / D(hold plateau) 실험 가치 판단
+  - **Plan 파일**: `C:\Users\admin\.claude\plans\keen-yawning-ullman.md`
 
 ### 2026-04-15
 - **Stroke 검증 전용 테스트 플레이어 신설** (`public/players/sentence-stroke-test/index.html`, ~1200 라인, `sentence/index.html` 수정 없음)

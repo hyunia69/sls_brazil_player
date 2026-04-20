@@ -11,11 +11,30 @@
 
   #controls {
     position: fixed; top: 0; left: 0; right: 0;
-    display: flex; align-items: center; gap: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
     padding: 10px 20px;
-    background: linear-gradient(180deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.25) 100%);
+    background: linear-gradient(180deg, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.35) 100%);
     z-index: 10;
+  }
+  .controls-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     flex-wrap: wrap;
+  }
+  .controls-row.secondary {
+    padding-top: 4px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .sub-label {
+    font-size: 11px;
+    color: #8a93a3;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    font-weight: 600;
+    white-space: nowrap;
   }
   #controls h1 { font-size: 15px; font-weight: 600; margin-right: 4px; white-space: nowrap; }
   #controls .divider { width: 1px; height: 22px; background: rgba(255,255,255,0.12); }
@@ -89,21 +108,48 @@
   #load-btn:active { transform: translateY(1px); }
   #load-btn:disabled { background: #555; border-color: #555; cursor: not-allowed; }
 
-  #batch-btn {
-    padding: 8px 18px;
-    border: 1px solid #e17055;
-    border-radius: 6px;
-    background: #e17055;
-    color: #fff;
-    font-size: 13px;
-    font-weight: 600;
+  #gloss-chips {
+    position: fixed;
+    top: 114px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: min(80%, calc(100% - 620px));
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    z-index: 9;
+    pointer-events: auto;
+  }
+  #gloss-chips:empty { display: none; }
+  .chip {
+    padding: 4px 12px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.08);
+    color: #ddd;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid rgba(255,255,255,0.15);
     cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
+    user-select: none;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
     white-space: nowrap;
   }
-  #batch-btn:hover { background: #eb8268; }
-  #batch-btn:active { transform: translateY(1px); }
-  #batch-btn:disabled { background: #555; border-color: #555; cursor: not-allowed; }
+  .chip:hover { background: rgba(255,255,255,0.14); border-color: rgba(255,255,255,0.25); }
+  .chip:active { transform: translateY(1px); }
+  .chip.active {
+    background: rgba(255, 156, 71, 0.22);
+    border-color: #ff9c47;
+    color: #fff;
+  }
+  .chip-missing {
+    background: rgba(220, 53, 69, 0.12);
+    border-color: rgba(220, 53, 69, 0.4);
+    color: #ff9aa2;
+    cursor: default;
+  }
+  .chip-missing:hover { background: rgba(220, 53, 69, 0.12); transform: none; }
 
   .model-selector { display: flex; gap: 6px; margin-left: auto; }
   .model-btn {
@@ -115,7 +161,7 @@
   .model-btn.active { background: #4361ee; border-color: #4361ee; color: #fff; }
 
   #error-banner {
-    position: fixed; top: 62px; left: 50%;
+    position: fixed; top: 108px; left: 50%;
     transform: translate(-50%, -20px);
     display: flex; align-items: center; gap: 10px;
     padding: 10px 16px;
@@ -204,7 +250,7 @@
   .mode-label { font-size: 12px; color: #888; }
 
   #info {
-    position: fixed; top: 66px; left: 16px;
+    position: fixed; top: 112px; left: 16px;
     padding: 12px 16px; border-radius: 8px;
     background: rgba(0,0,0,0.65); backdrop-filter: blur(8px);
     font-size: 12px; line-height: 1.75; z-index: 10;
@@ -227,7 +273,7 @@
 
   /* Compare panel (chart + A/B/C/D methods) */
   #compare-panel {
-    position: fixed; top: 66px; right: 16px;
+    position: fixed; top: 112px; right: 16px;
     width: 524px;
     padding: 12px 14px;
     background: rgba(0,0,0,0.68);
@@ -236,7 +282,7 @@
     border: 1px solid rgba(255,255,255,0.08);
     font-size: 11px;
     z-index: 10;
-    max-height: calc(100vh - 200px);
+    max-height: calc(100vh - 250px);
     overflow-y: auto;
   }
   .panel-title {
@@ -367,18 +413,20 @@
 <div id="loading"><div class="spinner"></div><span>Loading...</span></div>
 
 <div id="controls">
-  <h1>Stroke Test</h1>
-  <input type="text" id="sentence-input" placeholder="문장 입력 (예: Oi amigo, você quer comer?)" autocomplete="off" />
-  <button id="translate-btn" type="button" title="VLibras 번역 API 호출 후 배치 재생">번역 &amp; 배치</button>
-  <span class="divider"></span>
-  <input type="text" id="word-input" placeholder="단어 (예: SIM, BOM)" autocomplete="off" />
-  <button id="load-btn" type="button">로드</button>
-  <button id="batch-btn" type="button" title="SIM → BOM → DIA 프리셋 배치">Sim bom dia</button>
-  <span class="divider"></span>
-  <div class="model-selector">
-    <button class="model-btn active" data-model="padrao_tex">Padrao</button>
-    <button class="model-btn" data-model="casa_tex">CASA</button>
-    <button class="model-btn" data-model="icaro">Icaro</button>
+  <div class="controls-row main">
+    <h1>Stroke Test</h1>
+    <input type="text" id="sentence-input" placeholder="문장 입력 (예: Oi amigo, você quer comer?)" autocomplete="off" />
+    <button id="translate-btn" type="button" title="VLibras 번역 API 호출 후 배치 재생">번역 &amp; 배치</button>
+    <div class="model-selector">
+      <button class="model-btn active" data-model="padrao_tex">Padrao</button>
+      <button class="model-btn" data-model="casa_tex">CASA</button>
+      <button class="model-btn" data-model="icaro">Icaro</button>
+    </div>
+  </div>
+  <div class="controls-row secondary">
+    <span class="sub-label">단일 글로스 분석</span>
+    <input type="text" id="word-input" placeholder="단어 (예: SIM, BOM)" autocomplete="off" />
+    <button id="load-btn" type="button">로드</button>
   </div>
 </div>
 
@@ -386,6 +434,8 @@
   <span class="msg"></span>
   <button type="button" class="close-btn" id="error-close-btn" aria-label="Close">&times;</button>
 </div>
+
+<div id="gloss-chips" aria-label="번역된 글로스"></div>
 
 <div id="info">
   <div class="section-title">Clip</div>
@@ -589,7 +639,6 @@ const sentenceInputEl = document.getElementById('sentence-input');
 const translateBtnEl = document.getElementById('translate-btn');
 const wordInputEl = document.getElementById('word-input');
 const loadBtnEl = document.getElementById('load-btn');
-const batchBtnEl = document.getElementById('batch-btn');
 const modeFullBtnEl = document.getElementById('mode-full');
 const modeStrokeBtnEl = document.getElementById('mode-stroke');
 const loopBtnEl = document.getElementById('btn-loop');
@@ -613,6 +662,7 @@ const infoModeEl = document.getElementById('info-mode');
 const infoModelEl = document.getElementById('info-model');
 const infoActiveMethodEl = document.getElementById('info-active-method');
 const chartEl = document.getElementById('chart');
+const glossChipsEl = document.getElementById('gloss-chips');
 
 // --- Error banner ---
 let errorTimer = null;
@@ -1321,14 +1371,73 @@ function updateLoopButton() {
   loopBtnEl.classList.toggle('active', isLooping);
 }
 
+// --- Gloss chips: show translated glosses as clickable chips ---
+function clearGlossChips() {
+  glossChipsEl.textContent = '';
+}
+
+function renderGlossChips(items, missing) {
+  glossChipsEl.textContent = '';
+  // Matched glosses → clickable chips (data-idx for batch index binding)
+  items.forEach((item, idx) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'chip';
+    btn.dataset.raw = item.raw;
+    btn.dataset.idx = String(idx);
+    btn.textContent = item.raw;
+    glossChipsEl.appendChild(btn);
+  });
+  // Missing glosses → disabled, visually distinct
+  for (const w of missing) {
+    const span = document.createElement('span');
+    span.className = 'chip chip-missing';
+    span.textContent = `⚠️ ${w}`;
+    glossChipsEl.appendChild(span);
+  }
+}
+
+function highlightChip(idx) {
+  const chips = glossChipsEl.querySelectorAll('.chip:not(.chip-missing)');
+  chips.forEach((c, i) => c.classList.toggle('active', i === idx));
+}
+
+function clearChipActive() {
+  glossChipsEl.querySelectorAll('.chip.active').forEach(c => c.classList.remove('active'));
+}
+
+// Click delegation: matched chip → load that gloss for inspection.
+// If a batch is running, end it first so the inspection state is isolated.
+glossChipsEl.addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip || chip.classList.contains('chip-missing')) return;
+  const raw = chip.dataset.raw;
+  if (!raw) return;
+  if (batchRunning) endBatch();
+  // Highlight immediately for responsiveness; loadWordClip handles its own state
+  const idx = Number(chip.dataset.idx);
+  if (Number.isFinite(idx)) highlightChip(idx);
+  loadWordClip(raw);
+});
+
+// --- Batch ↔ inspection sync: keep motion profile aligned with current batch gloss ---
+function syncInspectionToBatchItem(idx) {
+  const item = batchQueue[idx];
+  if (!item) return;
+  currentClip = item.clip;
+  currentDuration = item.clip.duration;
+  currentRaw = item.raw;
+  currentProfile = item.profile;
+  recomputeAllMethods();
+  applyActiveMethod(); // updates infoPanel, strokeBar, playbackMode (no-op on currentAction=null)
+  renderChart();
+  highlightChip(idx);
+}
+
 // --- Batch: stroke-only playback with crossfade blending ---
 // 여러 clip을 같은 mixer에 action으로 바인딩 → 각 action은 strokeStart에서 시작 →
 // animate 루프가 strokeEnd 직전에 다음 action으로 crossFadeTo 호출.
 // 각 action은 자체 strokeEnd 도달 시 paused=true로 정지 (recovery 재생 방지).
-function runBatchSimBomDia() {
-  runBatch(['SIM', 'BOM', 'DIA'], 'Sim bom dia');
-}
-
 function runBatch(glosses, label) {
   if (batchRunning) return;
   _runBatch(glosses, label || glosses.join(' ')).catch(e => {
@@ -1372,11 +1481,11 @@ async function onTranslateAndBatch() {
 
 async function _runBatch(words, label) {
   batchRunning = true;
-  batchBtnEl.disabled = true;
   loadBtnEl.disabled = true;
   translateBtnEl.disabled = true;
   mode = 'stroke';
   applyPlaybackMode();
+  clearGlossChips();
 
   // 1) Fetch all clips in parallel, then build items with active-method stroke ranges
   const missing = [];
@@ -1395,6 +1504,7 @@ async function _runBatch(words, label) {
       return {
         raw: entry.raw,
         clip,
+        profile,
         duration: clip.duration,
         strokeStart: r.strokeStart,
         strokeEnd: r.strokeEnd,
@@ -1408,6 +1518,8 @@ async function _runBatch(words, label) {
     showError(`미매칭 단어 ${missing.length}개: ${missing.slice(0, 8).join(', ')}${missing.length > 8 ? '...' : ''}`);
   }
   const items = fetchResults.filter(Boolean);
+  // Render gloss chips immediately so users see the queue even when nothing is playable
+  renderGlossChips(items, missing);
   if (items.length === 0) {
     endBatch();
     showError('재생 가능한 단어가 없습니다');
@@ -1434,6 +1546,7 @@ async function _runBatch(words, label) {
     return {
       raw: item.raw,
       clip: item.clip,
+      profile: item.profile,
       duration: item.duration,
       strokeStart: item.strokeStart,
       strokeEnd: item.strokeEnd,
@@ -1461,6 +1574,7 @@ async function _runBatch(words, label) {
   batchMode = true;
   isPlaying = true;
   clock.getDelta();
+  syncInspectionToBatchItem(0);
   infoWordEl.textContent = `${first.raw} (batch 1/${batchQueue.length})`;
   console.log(
     `[stroke-test] batch start "${label}" (method: ${activeMethod}, fade: ${(BATCH_FADE_SEC * 1000) | 0}ms) ` +
@@ -1496,9 +1610,9 @@ function endBatch() {
   batchMode = false;
   batchRunning = false;
   isPlaying = false;
-  batchBtnEl.disabled = false;
   loadBtnEl.disabled = false;
   if (translateBtnEl) translateBtnEl.disabled = false;
+  clearChipActive();
   console.log('[stroke-test] batch end');
 }
 
@@ -1539,6 +1653,7 @@ function animate() {
         if (batchCurrentIdx < batchQueue.length - 1) {
           batchCurrentIdx += 1;
           const nxt = batchQueue[batchCurrentIdx];
+          syncInspectionToBatchItem(batchCurrentIdx);
           infoWordEl.textContent = `${nxt.raw} (batch ${batchCurrentIdx + 1}/${batchQueue.length})`;
           console.log(`[stroke-test] batch advance → ${nxt.raw} @ ${nxt.action.time.toFixed(3)}s`);
         } else {
@@ -1569,11 +1684,17 @@ function animate() {
 }
 
 // --- Handlers ---
-loadBtnEl.addEventListener('click', () => { loadWordClip(wordInputEl.value); });
-wordInputEl.addEventListener('keydown', (e) => {
-  if (e.code === 'Enter') { e.preventDefault(); loadWordClip(wordInputEl.value); }
+loadBtnEl.addEventListener('click', () => {
+  clearGlossChips();
+  loadWordClip(wordInputEl.value);
 });
-batchBtnEl.addEventListener('click', runBatchSimBomDia);
+wordInputEl.addEventListener('keydown', (e) => {
+  if (e.code === 'Enter') {
+    e.preventDefault();
+    clearGlossChips();
+    loadWordClip(wordInputEl.value);
+  }
+});
 translateBtnEl.addEventListener('click', onTranslateAndBatch);
 sentenceInputEl.addEventListener('keydown', (e) => {
   if (e.code === 'Enter') { e.preventDefault(); onTranslateAndBatch(); }
