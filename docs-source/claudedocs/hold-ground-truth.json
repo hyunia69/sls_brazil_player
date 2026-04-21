@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "description": "Manual hold-phase annotations for the 5 P5.2 scenarios. Ground truth for Hold Retention Rate (Codex-recommended, non-circular — must not reuse Method E's velocity/restDist heuristic). Annotate by playing each gloss clip in isolation (sentence-stroke-test single-word mode), reviewing frame-by-frame, and recording inclusive frame ranges where the wrist visibly holds (<2cm world movement) for >=100ms.",
+  "sourceBundle": "public/animations/vlibras/bundles/",
+  "sampleRate": 60,
+  "annotators": {
+    "primary": "(pending)",
+    "reviewer": "(pending)",
+    "conflictResolution": "cross-check differences, re-review jointly, commit merged ranges"
+  },
+  "boneGroups": {
+    "right-hand": "BnMaoOrientR (world-position stable)",
+    "left-hand": "BnMaoOrientL",
+    "either": "either hand counts as hold (use when bimanual and tracking one is sufficient)"
+  },
+  "frameRangeFormat": "[startFrameInclusive, endFrameInclusive] at 60fps; startSec = start/60",
+  "scenarios": [
+    {
+      "id": "single",
+      "category": "single-motion",
+      "label": "Olá",
+      "glosses": ["OLA"],
+      "status": "pending",
+      "holds": [
+        { "gloss": "OLA", "boneGroup": "right-hand", "frameRanges": [], "note": "annotation pending" }
+      ]
+    },
+    {
+      "id": "multi-peak",
+      "category": "multi-peak",
+      "label": "Bom dia, amigo",
+      "glosses": ["BOM", "DIA", "AMIGO"],
+      "status": "pending",
+      "holds": [
+        { "gloss": "BOM",   "boneGroup": "right-hand", "frameRanges": [], "note": "annotation pending" },
+        { "gloss": "DIA",   "boneGroup": "right-hand", "frameRanges": [], "note": "annotation pending" },
+        { "gloss": "AMIGO", "boneGroup": "right-hand", "frameRanges": [], "note": "annotation pending" }
+      ]
+    },
+    {
+      "id": "bimanual",
+      "category": "bimanual-asymmetric",
+      "label": "Família e água",
+      "glosses": ["FAMILIA", "AGUA"],
+      "status": "pending",
+      "holds": [
+        { "gloss": "FAMILIA", "boneGroup": "either", "frameRanges": [], "note": "annotation pending" },
+        { "gloss": "AGUA",    "boneGroup": "either", "frameRanges": [], "note": "annotation pending" }
+      ]
+    },
+    {
+      "id": "hold",
+      "category": "hold-dominant",
+      "label": "Eu tenho casa",
+      "glosses": ["TER", "CASA"],
+      "status": "pending",
+      "holds": [
+        { "gloss": "TER",  "boneGroup": "either", "frameRanges": [], "note": "annotation pending - hold-dominant scenario, expect long hold windows" },
+        { "gloss": "CASA", "boneGroup": "either", "frameRanges": [], "note": "annotation pending" }
+      ]
+    },
+    {
+      "id": "rapid",
+      "category": "rapid-succession",
+      "label": "Eu vou estudar",
+      "glosses": ["EU", "IR", "ESTUDAR"],
+      "status": "pending",
+      "holds": [
+        { "gloss": "EU",      "boneGroup": "right-hand", "frameRanges": [], "note": "annotation pending - short gloss, may have no hold at all" },
+        { "gloss": "IR",      "boneGroup": "right-hand", "frameRanges": [], "note": "annotation pending" },
+        { "gloss": "ESTUDAR", "boneGroup": "either",     "frameRanges": [], "note": "annotation pending" }
+      ]
+    }
+  ]
+}

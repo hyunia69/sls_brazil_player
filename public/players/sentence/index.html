@@ -304,9 +304,18 @@ scene.add(new THREE.GridHelper(10, 20, 0x333355, 0x222244));
 // P5: 동적 모션 블렌딩 상수.
 // 글로스 경계 포즈 차이가 작으면 짧게(FADE_MIN), 크면 길게(FADE_MAX) 전환한다.
 // 가중 RMS 각거리 D (라디안)를 sqrt 곡선으로 [FADE_MIN, FADE_MAX]에 매핑.
-const FADE_MIN = 0.12;
+//
+// P5.3 (2026-04-21): FADE_MIN 0.12 → 0.20 상향.
+// 수어 애니메이션 문헌의 "faster signs, slower transitions" 경향 반영.
+// Deaf user 평가에서 보통 transition이 너무 짧으면 끊겨 보인다고 보고된다.
+// 런타임 override: 개발자 콘솔에서 `window.__fadeMin = 0.15` 등으로 시험 가능.
+const FADE_MIN_DEFAULT = 0.20;
 const FADE_MAX = 0.45;
 const D_REF    = 1.5;   // FADE_MAX에 도달하는 가중 RMS 각 (라디안)
+function getFadeMin() {
+  const override = (typeof window !== 'undefined') ? window.__fadeMin : null;
+  return (typeof override === 'number' && override >= 0 && override <= FADE_MAX) ? override : FADE_MIN_DEFAULT;
+}
 
 // 모션 블렌딩에 사용할 본 가중치.
 // 손목(BnMaoOrient)과 상박(BnBraco)이 시각적으로 가장 큰 기여.
@@ -526,7 +535,8 @@ function computeStrokeRange(clip) {
 // BONE_WEIGHTS를 사용한 가중 RMS 각거리를 계산하고 sqrt 곡선으로
 // [FADE_MIN, FADE_MAX] 범위에 매핑.
 function computeTransitionDuration(prevEnd, nextStart) {
-  if (!prevEnd || !nextStart) return FADE_MIN;
+  const fadeMin = getFadeMin();
+  if (!prevEnd || !nextStart) return fadeMin;
   let sumW = 0, sumWA2 = 0;
   for (const bone in BONE_WEIGHTS) {
     const qa = prevEnd.get(bone);
@@ -538,10 +548,10 @@ function computeTransitionDuration(prevEnd, nextStart) {
     sumWA2 += w * angle * angle;
     sumW += w;
   }
-  if (sumW === 0) return FADE_MIN;
+  if (sumW === 0) return fadeMin;
   const D = Math.sqrt(sumWA2 / sumW);           // 가중 RMS 각
   const t = Math.min(1, Math.sqrt(D / D_REF));
-  return FADE_MIN + (FADE_MAX - FADE_MIN) * t;
+  return fadeMin + (FADE_MAX - fadeMin) * t;
 }
 
 // --- Fetch a single bundle-index entry as a clip object ---
@@ -1229,7 +1239,7 @@ function animate() {
     if (queueActions.length > 0 && currentIdx < queueActions.length) {
       const curr = queueActions[currentIdx];
       if (curr && !curr._fadeStarted && currentIdx + 1 < queueActions.length) {
-        const fadeSec = curr.nextFadeSec ?? FADE_MIN;
+        const fadeSec = curr.nextFadeSec ?? getFadeMin();
         const effectiveEnd = curr.effectiveEnd ?? curr.duration;
         const timeLeft = effectiveEnd - curr.action.time;
         if (timeLeft <= fadeSec) {

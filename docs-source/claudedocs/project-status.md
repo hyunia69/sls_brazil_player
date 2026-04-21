@@ -32,36 +32,20 @@
 
 ---
 
-## 오늘의 작업 중점 (2026-04-20)
+## 오늘의 작업 중점 (2026-04-21)
 
-**집중 대상**: `public/players/sentence-stroke-test/` (http://localhost:8080/players/sentence-stroke-test/)
+**집중 대상**: `docs-source/claudedocs/plan-sentence-blending-redesign.md` + `public/players/sentence-stroke-test/` + `public/players/sentence/`
 
-**목표**: 모션 블렌딩 전략의 근본 재검토. 현행(stroke trim + crossfade — P5.1 production은 Method A, 검증 도구는 Method C 권장)이 적절한지 원점에서 평가하고, 대안을 탐색한다.
+**목표 (완료)**: 블렌딩 로직 전면 재검토 플랜 수립 → Codex 2차 검토 반영 → **P5.2 Week 1 실행** (메트릭 baseline + 시나리오 preset + production FADE_MIN 상향).
 
-**핵심 질문**
-1. **Stroke 기반 단어 연결이 옳은 방향인가?** prep/recovery를 잘라내면 차렷 왕복 dead time은 줄지만, 각 글로스의 자연스러운 리듬(수어 고유 accent/beat, hold, 방향성)이 훼손될 가능성. 시각 검증이 필요하다.
-2. **검토할 대안**
-   - **(A) 현행**: stroke trim + Three.js native crossfade (Method A/B/C/D 비교)
-   - **(B) Full clip + smart crossfade**: 이전 글로스 recovery와 다음 글로스 prep을 겹쳐 recovery가 prep에 자연스럽게 녹아들게
-   - **(C) Hand-trajectory 보간**: 글로스 사이 손목 world position을 Cubic Bezier/Catmull-Rom으로 직접 보간, 2-bone IK로 팔꿈치 해석. "차렷 미하강"을 기하학적으로 보장
-   - **(D) Hold plateau 브리지**: stroke 종점에서 손을 짧게 hold(수어 자연 hold 구간)한 뒤 다음 prep으로 전환
-3. **P5.2(Method C production 적용 결정) 진행 전에 전제부터 재점검**
-
-**세션 계획**
-1. `sentence-stroke-test/`에서 다양한 글로스(CASA/ESCOLA/AGUA/VOCE/AMIGO/TRABALHO + SIM/BOM/DIA) × Method A/B/C/D 시각 비교
-2. 스파이크 문장 5개 이상 배치 재생 육안 평가 — stroke 연결의 자연스러움, 글로스 accent 보존도, 손 궤적 연속성
-3. 대안 B/C/D 중 실험 가치가 있는 방향 식별 → 검증 도구에 실험 분기 추가할지 결정
-4. 결론에 따라 P5.2 진행/보류/재정의, 필요 시 P5 Phase B 재설계
-
-**산출물**
-- 검증 관찰 요약 → 작업 이력 `### 2026-04-20` 추가
-- Stroke 전략 유지/변경/보강 결정
-- 결정 반영한 "다음 세션 작업" 재배열
-
-**진행 상황 (2026-04-20)**
-- ✅ **UI 정리 완료**: `sentence-stroke-test/index.html` 2단 컨트롤 + "번역 & 배치" 주 동선 + 단일 글로스 분석 보조 동선, "Sim bom dia" 하드코딩 버튼 제거
-- ✅ **Motion profile 동기화 완료**: 배치 진행에 따라 현재 재생 글로스의 profile을 자동 표시, 글로스 칩 UI 추가 (칩 클릭 시 단일 분석으로 override)
-- ⏳ **평가 남음**: 다양한 글로스(CASA/ESCOLA/AGUA/VOCE/AMIGO/TRABALHO 등) × Method A/B/C/D 시각 비교, 배치 5문장 육안 평가, 대안 B/C/D 검토
+**진행 상황 (2026-04-21)**
+- ✅ **플랜 수립 완료**: `plan-sentence-blending-redesign.md` — 4 phase (P5.2 실험대 + P5.3 저위험 + P6a 포팅 + P6b SQUAD spike + P6.5 hybrid eval). 학술/산업 조사 포함.
+- ✅ **Codex 2차 검토 반영**: 순환 평가 방지 수동 라벨링 프로토콜, 자동 메트릭→diagnostic 격하, P6 분할, 문헌 인용 순화, P7·27→100 확장 scope 외.
+- ✅ **P5.3 Step 1**: `sentence/index.html` `FADE_MIN` 0.12 → 0.20 (`getFadeMin()` 헬퍼 + `window.__fadeMin` override).
+- ✅ **P5.2 Step 1-2**: `sentence-stroke-test/index.html` 5 시나리오 preset(즉시 배치) + 자동 메트릭 4종(Jerk RMS, Boundary disc., Velocity cont., Quaternion Plateau) + 메트릭 저장 버튼 + JSON export.
+- ✅ **Quaternion proxy 채택**: Codex 원안 FK 월드 위치는 VLibras flat skeleton에서 불가 확인 → STROKE_BONES 6본 rolling window 각거리로 독립 proxy 구현.
+- ✅ **`hold-ground-truth.json` scaffold**: 5 시나리오 수동 라벨링 자리 확보.
+- ⏳ **다음**: Week 2 Method E/F/G + 수동 hold annotation + 4-row 문장 비교 차트.
 
 ---
 
@@ -151,46 +135,75 @@
 
 ## 주간보고
 
-### 2026-04-15 (수)
+**기간**: 2026-04-14 ~ 2026-04-21 | **컨텍스트**: Sentence Player 블렌딩 로직 원점 재검토 + 검증 실험대 구축 + 재설계 플랜 수립
 
-- [완료] **Stroke 검증 전용 테스트 플레이어** (`public/players/sentence-stroke-test/index.html`, 신규 ~1200 라인, `sentence/index.html` 일절 수정 없음)
-  - **배경**: P5.1 Stroke Trim 출시 후 사용자가 Sim bom dia 배치 재생에서 BOM의 recovery가 "차렷까지" 포함되는 현상을 보고. Production 코드(`sentence/index.html`)는 튜닝/실험에 부적합 → 검증 대상과 도구를 격리한 독립 플레이어 구축.
-  - **골격**: `vlibras-v3/index.html` 단일 글로스 구조 기반, `sentence/index.html:331-572`의 stroke 검출 블록(`STROKE_*` 상수, `asciiKey`, `loadBundleIndex`, `buildClipFromJson`, `sampleQuaternionAt`, `extractPoseAt`, `computeStrokeRange`)을 `// SYNC: ...:<line>` 주석과 함께 복제.
-  - **4가지 stroke 검출 방법 동시 비교**:
-    - **Method A — Cumulative %**: sentence player와 동일. 누적 angular delta 기반, slider head/tail 각 5-35% (기본 12/12)
-    - **Method B — Peak-hold window**: `velocity ≥ peakVel × threshold%` 인 구간, slider 15-85% (기본 45)
-    - **Method C — Rest-pose + hold plateau (asymmetric)**: strokeStart는 peak 왼쪽 scan에서 `restDist < restPct%`, strokeEnd는 **peak 오른쪽 scan에서 `restDist < 90%` 첫 지점**(hold 끝). slider 10-90% (기본 30)
-    - **Method D — Peak drop (centered)**: peak 기준 좌우 스캔, `velocity < peakVel × (1-drop%)` 첫 지점, slider 10-70% (기본 40)
-  - **Motion profile SVG 차트**: 496×180 viewBox, velocity(파랑 실선) + cumulative(회색 점선) + rest-pose distance(주황 실선) + peak marker + 각 method의 strokeStart/strokeEnd 수직 점선. Active method는 굵은 실선 + 음영 rect + 재생 커서(노랑).
-  - **실시간 재계산**: slider 조정 시 해당 method만 재계산 → 차트 + 정보 패널 + stroke-bar 즉시 업데이트. Active method radio 변경 시 재생 경계 전환.
-  - **Method C 진화 기록** (BOM 사례):
-    1. 초기 bidirectional `restDist >= thresh` first/last index: BOM [0.183, 1.617] — recovery 후반 포함
-    2. Peak-centered scan: 단일 peak 구조에선 동일 결과 — 미해결
-    3. **최종 asymmetric + plateau 90%**: BOM [0.183, **1.190**] — recovery 427ms 배제. SIM 3.062→2.478, DIA 2.055→1.364
-  - **단일 단어 재생**: Full/Stroke only 토글, LoopRepeat 모드. animate 루프에서 `[strokeStart, strokeEnd]` 외부 clamp. 미니 stroke 바에 전체 clip 대비 stroke 구간 하이라이트.
-  - **범용 배치 재생** (`_runBatch(words, label)`):
-    - 여러 clip을 `batchMixer`에 LoopOnce + clampWhenFinished로 바인딩, 각 action은 `time = strokeStart`부터 play
-    - animate 루프에서 **두 가지 작업**: (1) `timeLeft ≤ nextFadeSec(200ms)` 시 `crossFadeTo(next, fadeSec)` 트리거, (2) `action.time ≥ strokeEnd` 시 `paused = true` + `batchCurrentIdx++`
-    - **중요 수정**: 초기 `finished` 이벤트 기반 advance는 중간 clip이 strokeEnd를 115ms 지난 뒤 trigger되어 recovery 재생 → animate 루프 `strokeEnd` 수동 감지로 전환해 정확히 1 프레임 오버런 이내로 정지
-    - **Delta cap**: `Math.min(clock.getDelta(), 0.1)` — tab throttling/fetch wait으로 경계 건너뛰기 방지
-  - **프리셋 배치**: "Sim bom dia" 버튼 = `runBatch(['SIM','BOM','DIA'], 'Sim bom dia')` 래퍼
-  - **임의 문장 번역 배치**: 새 `#sentence-input` + `#translate-btn`. `translateSentence(text)`가 `POST traducao2.vlibras.gov.br/translate`(sentence/index.html:612-623 포팅) → plain text `\s+` split → 글로스 배열. 미매칭 단어는 skip + 에러 배너에 "미매칭 단어 N개: ..." 표시. "Bom dia amigo" 실 API 호출 검증 완료.
-  - **Debug hook**: `window.__strokeTest.getBatchState()` — 외부 테스트 harness가 live batch state(각 action의 `time/weight/paused/_fadeStarted/strokeStart/strokeEnd`) 조회. Playwright 내부 상태 샘플링에 활용.
-  - **Playwright 검증**:
-    - 단일 단어 각 method 수치: SIM A=[0.338,3.062]80.1%/C=[0.346,2.478]62.7%, BOM A=[0.233,1.597]75.8%/C=[0.183,1.190]55.9%, DIA A=[0.284,2.055]77.0%/C=[0.234,1.364]49.2%
-    - 슬라이더 실시간(C 30→50% → [0.305,1.525]67.8%)
-    - Active method 전환 A→C: info 패널 + stroke-bar + 재생 경계 모두 전환
-    - 배치 내부 샘플링(Method C): SIM strokeEnd 2.478에서 paused, BOM strokeEnd 1.190에서 **최대 1.204 오버런(14ms = 1 프레임 미만)** 후 paused. crossfade weight BOM 1.0→0.40→0.0 / DIA 0.0→0.60→1.0 (200ms linear)
-    - "Bom dia amigo" 실 번역 API → `BOM DIA AMIGO` → 4.3s 완료, JS 에러 0
-  - **결정**: `sentence/index.html`(P5.1 production)은 일절 수정하지 않음. Method C가 현재 권장. sentence 파일에 적용 여부는 P5.2로 별도 결정.
-  - **Plan 파일**: `C:\Users\admin\.claude\plans\twinkling-snacking-diffie.md`
+- 완료
+  1. 검증 도구 ([`sentence-stroke-test`](public/players/sentence-stroke-test/index.html))
+     1) J1: 2026-04-15 신설
+        - Method A/B/C/D + motion profile SVG, ~1200 라인, production 무수정
+     2) J2: 2026-04-20 UI/UX 재구성
+        - 2단 컨트롤 바, 글로스 칩, profile↔배치 sync, preset 5개, VLibras 토큰 파서
+  2. 블렌딩 재설계
+     1) J3: 2026-04-21 플랜 문서
+        - [`plan-sentence-blending-redesign.md`](docs-source/claudedocs/plan-sentence-blending-redesign.md) 4-phase + Codex 1/2차 검토 반영
+     2) J4: 2026-04-21 P5.3 Step 1 (저위험 튜닝)
+        - production [`sentence/index.html`](public/players/sentence/index.html) FADE_MIN 0.12→0.20 + `getFadeMin()` 훅
+     3) J5+J6: 2026-04-21 P5.2 Week 1 메트릭 baseline
+        - `computeBlendingMetrics` 4종(Jerk/Boundary/Velocity/Plateau) + JSON export
+        - 5 시나리오 preset + Quaternion proxy STROKE_BONES 6본 rolling window
+- 진행중
+  1. J7: 수동 hold ground truth
+     1) 🔄 scaffold
+        - [`hold-ground-truth.json`](docs-source/claudedocs/hold-ground-truth.json) 5 시나리오 라벨 자리 (Week 2 채움)
+- 예정
+  1. J8: P5.2 Week 2
+     1) Method E/F/G + 수동 annotation
+        - M-H hold 인식 / SQUAD prototype / bimanual separated + 4-row 비교
+  2. J9: P6a 승자 포팅 + targetted/lax (3주)
+     1) production `sentence/index.html`에 Week 2 승자 포팅
+  3. J10: P6b SQUAD Three.js spike (3일)
+     1) Go/No-Go 판정
+  4. J11: P6.5 3-track hybrid eval
+     1) KSL naturalness + 원격 LIBRAS + 전문가 fallback
 
-- [예정] **P5.2 — Method C asymmetric 적용 결정**: 검증 도구에서 튜닝한 Method C를 `sentence/index.html`에 back-port할지, PLATEAU_RATIO(0.90) 고정값을 노출할지, 다양한 글로스(CASA/ESCOLA/AGUA/VOCE/AMIGO/TRABALHO 등)에서 육안 검증 후 결정
-- [예정] 어휘 확장 (27 → 100), `asset_bundle.py` UnityPy 1.25+ 마이그레이션, Sentence Player seek(P4)
+**핵심 수치 (Method C, Playwright)**: Hold `TER CASA` Plateau **0.305** / Rapid `EU IR ESTUDAR` Jerk RMS **1733.29** (≈2.7× Hold) / BOM strokeEnd 오버런 14ms 이내 정지
+
+**핵심 결정**: 자동 메트릭은 acceptance criterion 아닌 **diagnostic signal** (HPR 순환 평가 방지). Method C 권장이나 production 포팅은 P6a에서 수동 annotation + 다수 지표 수렴 + 시각 A/B 후 결정. P7 리타겟팅·27→100 어휘 확장은 재설계 scope 외.
 
 ---
 
 ## 작업 이력
+
+### 2026-04-21
+- **블렌딩 로직 전면 재검토 플랜 작성 + Codex 2차 검토 반영 + P5.2 Week 1 구현** (`docs-source/claudedocs/plan-sentence-blending-redesign.md` 신규, `public/players/sentence/index.html`, `public/players/sentence-stroke-test/index.html`, `docs-source/claudedocs/hold-ground-truth.json` 신규)
+  - **배경**: 사용자 요청 "stroke 기반 단어 연결이 적절한지 원점 재검토. 멀티 에이전트 활용". 학술(수어 음운론 M-H model, Tyrone&Mauk coarticulation, SQUAD) + 산업(VLibras 단순 concat, JASigning targeted/lax, PAULA multi-track) 병렬 조사 후 4-phase 하이브리드 마이그레이션 플랜 수립.
+  - **Codex 1차 검토 (재설계 필요 판정)** 반영:
+    - P6 분할 → **P6a** (Winner port + targetted/lax, 3주) + **P6b** (SQUAD 3일 spike, Go/No-Go 분리). 어중간한 병합 금지.
+    - **수동 ground truth 라벨링** 프로토콜 추가 (`hold-ground-truth.json` scaffold 5 시나리오) — Method E HPR 순환 평가 방지.
+    - 자동 메트릭 → **diagnostic signal** 격하 (acceptance criterion 아님). 최종 결정은 수동 라벨 + 다수 지표 수렴 + 시각 A/B.
+    - P6.5 → **3-track hybrid eval** (KSL naturalness + 원격 LIBRAS comprehensibility + 전문가 fallback). 한국 LIBRAS 섭외 어려움 완화.
+    - 문헌 인용 강도 순화 (Tyrone&Mauk "citation 100% 부자연" → 확장 해석 명시 / JASigning "Deaf 평가 개선 실증" → "우리가 테스트할 가설"). "literature as proof" 주장 제거.
+    - P7 항목 및 27→100 확장은 이번 재검토 **범위 외** 명시.
+  - **Codex 2차 반박 재질의**:
+    - HPR 순환성 — 수동 라벨로 좁은 순환은 해결, 그러나 HPR 자체는 linguistic naturalness 직접 증명 못 함 → signal 중 하나로 유지. Codex 추가 추천 **spatial plateau proxy** 수용.
+    - Citation overreach 구체 지점 확인 + Cut candidates 확정 (SQUAD 격리 / P7 cut / literature-as-proof cut).
+  - **P5.2 Week 1 구현**:
+    - `sentence/index.html`: `FADE_MIN` 0.12 → **0.20** 상향 + `getFadeMin()` 헬퍼로 `window.__fadeMin` 런타임 override 허용. `computeTransitionDuration`/crossfade 분기 전환 ("faster signs, slower transitions" 가이드 반영).
+    - `sentence-stroke-test/index.html`:
+      - **5 시나리오 preset** (고정 글로스 경로, translate API 우회): single `OLA` / multi-peak `BOM DIA AMIGO` / bimanual `FAMILIA AGUA` / hold `TER CASA` / rapid `EU IR ESTUDAR`. preset 선택 즉시 `runBatch()` 호출.
+      - **자동 메트릭** `computeBlendingMetrics(batchQueue, samples, method, label)`: Jerk RMS(velocities 2차 차분), Boundary discontinuity(strokeEnd↔strokeStart 가중 RMS 각거리, `METRIC_BONE_WEIGHTS`), Velocity continuity(boundary 양쪽 velocity 샘플), Quaternion Plateau(STROKE_BONES 6본 rolling window 각거리 ≤ 0.05rad & ≥100ms).
+      - **"메트릭 저장"** 버튼 추가: `endBatch` 직후 `window.__lastBlendingMetrics` 저장 + console.group 표 + 버튼 클릭 시 JSON 다운로드. `window.__metricsAutoDownload = true`로 자동 다운로드 토글.
+      - **FK 월드 위치 실패 → quaternion proxy로 대체**: Codex 원안은 손목 월드 위치 2cm 이내였으나 Playwright 검증에서 VLibras 스켈레톤이 flat hierarchy(`BnMaoOrientR.parent = Armature001`)라 월드 위치가 애니메이션 영향 안 받음(rx=-8.499 고정)을 확인. `currentModel.updateMatrixWorld(true)` + `bone.updateWorldMatrix(true,false)` 강제 호출해도 동일. → STROKE_BONES 6본 quaternion rolling window(threshold 0.05rad)로 독립 proxy 구현. Method E 휴리스틱과 별개 정의라 순환 평가 회피 유지.
+  - **Playwright 검증**: 5 시나리오 중 3 시나리오 돌림. 지표가 시나리오 특성을 반영하는지 확인:
+
+    | 시나리오 | Plateau Rate | Jerk RMS mean |
+    |---|---|---|
+    | Hold `TER CASA` | **0.305** | 639.7 |
+    | Rapid `EU IR ESTUDAR` | 0.254 | **1733.29** |
+    | Multi-peak `BOM DIA AMIGO` | 0.168 | 1132.57 |
+
+    Hold-dominant가 plateau 최고, Rapid가 jerk 최고 (≈2.7× Hold) — 직관 일치. Boundary discontinuity 0.31~0.35 rad 범위, Velocity continuity vDelta -2.7 ~ +6.8 rad/s.
+  - **남은 것**: Week 2 Method E/F/G 추가 + 수동 hold annotation 착수 + 4-row 문장 비교 모드.
 
 ### 2026-04-20
 - **Sentence Stroke Test 페이지 UI 정리 + motion profile 배치 동기화** (`public/players/sentence-stroke-test/index.html` 단일 파일)

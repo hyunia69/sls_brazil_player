@@ -110,7 +110,7 @@
     background: rgba(255,255,255,0.12);
   }
 
-  #load-btn {
+  #load-btn, #metrics-save-btn {
     padding: 8px 18px;
     border: 1px solid #4361ee;
     border-radius: 6px;
@@ -122,9 +122,11 @@
     transition: background 0.2s, transform 0.1s;
     white-space: nowrap;
   }
-  #load-btn:hover { background: #5670f0; }
-  #load-btn:active { transform: translateY(1px); }
-  #load-btn:disabled { background: #555; border-color: #555; cursor: not-allowed; }
+  #load-btn:hover, #metrics-save-btn:hover { background: #5670f0; }
+  #load-btn:active, #metrics-save-btn:active { transform: translateY(1px); }
+  #load-btn:disabled, #metrics-save-btn:disabled { background: #555; border-color: #555; cursor: not-allowed; opacity: 0.65; }
+  #metrics-save-btn { background: #2e8a70; border-color: #2e8a70; }
+  #metrics-save-btn:hover:not(:disabled) { background: #3ca383; border-color: #3ca383; }
 
   #gloss-chips {
     position: fixed;
@@ -447,9 +449,10 @@
   </div>
   <div class="controls-row preset">
     <span class="sub-label">테스트 문장</span>
-    <select id="preset-select" title="테스트 문장 프리셋 (선택 시 입력란에 채움)">
+    <select id="preset-select" title="시나리오 preset 선택 시 즉시 배치, 문장 preset 선택 시 입력란 채움">
       <option value="" selected>— 테스트 문장 선택 —</option>
     </select>
+    <button id="metrics-save-btn" type="button" title="직전 배치의 블렌딩 메트릭 JSON 다운로드" disabled>메트릭 저장</button>
     <div class="divider"></div>
     <span class="sub-label">단일 글로스 분석</span>
     <input type="text" id="word-input" placeholder="단어 (예: SIM, BOM)" autocomplete="off" />
@@ -585,14 +588,26 @@ const TRANSLATE_URL = 'https://traducao2.vlibras.gov.br/translate';
 const EXCLUDE_NAMES = ['Icosphere'];
 
 // Preset test sentences for motion-continuity evaluation.
-// Selecting one fills sentence-input with the Portuguese text; the user
-// then presses '번역 & 배치' to run the normal VLibras API path so the
-// test matches production translation behavior.
+// Two modes:
+//   1) Fixed glosses (scenario/glosses 지정) — translate API 우회, 통제된 실험용
+//      category = 'scenario' 인 preset은 선택 즉시 runBatch(glosses) 호출.
+//   2) Translate path (glosses 미지정) — 기존 동작: input 채우고 사용자 번역 버튼 클릭.
+//
+// P5.2 5 시나리오 (현재 27 글로스 bundle 가용 단어로 구성):
+//   - single       : OLA               — 단일 글로스 (prep/stroke/recovery 기본형)
+//   - multi-peak   : BOM DIA AMIGO     — 3 글로스 multi-peak
+//   - bimanual     : FAMILIA AGUA      — 양손 asymmetric
+//   - hold         : TER CASA          — hold-dominant (trim 시 의미 손실 위험)
+//   - rapid        : EU IR ESTUDAR     — 짧은 글로스 빠른 연쇄
 const PRESET_SENTENCES = [
-  { pt: 'Bom dia amigo',          en: 'Good day, friend' },
+  { category: 'single',     tag: '① 단일',       pt: 'Olá',                glosses: ['OLA'] },
+  { category: 'multi-peak', tag: '② 멀티피크',   pt: 'Bom dia, amigo',     glosses: ['BOM', 'DIA', 'AMIGO'] },
+  { category: 'bimanual',   tag: '③ 양손',       pt: 'Família e água',     glosses: ['FAMILIA', 'AGUA'] },
+  { category: 'hold',       tag: '④ Hold 중심', pt: 'Eu tenho casa',      glosses: ['TER', 'CASA'] },
+  { category: 'rapid',      tag: '⑤ 빠른 연쇄',  pt: 'Eu vou estudar',     glosses: ['EU', 'IR', 'ESTUDAR'] },
+  // Translate-path preset (기존 방식 유지, VLibras API 테스트용)
   { pt: 'Eu quero beber água.',   en: 'I want to drink water.' },
   { pt: 'Você gosta de estudar?', en: 'Do you like studying?' },
-  { pt: 'Eu moro na casa.',       en: 'I live in the house.' },
   { pt: 'Obrigado, muito bom!',   en: 'Thank you, very good!' },
 ];
 
@@ -657,8 +672,21 @@ let batchMode = false;
 let batchMixer = null;
 let batchOnFinished = null;
 const BATCH_FADE_SEC = 0.2;      // crossfade duration between adjacent glosses (200ms)
+// P5.2 메트릭 수집: 배치 재생 동안 STROKE_BONES 6본의 quaternion 시계열을 기록한다.
+// Codex 원안(FK wrist 월드 위치 2cm)은 VLibras 스켈레톤 flat hierarchy 때문에 불가 —
+// BnMaoOrientR.parent = Armature001 (팔 chain 아님) 이라 월드 위치가 애니메이션 영향 안 받음.
+// 대체: 6본 quaternion rolling window 각거리 ≤ threshold 구간을 "quaternion plateau"로 판정.
+// Method E 휴리스틱(summed velocity + restDist)과 독립된 별개 proxy.
+let batchMetricsSamples = [];    // [{t, itemIdx, actionTime, quats:{boneName:[x,y,z,w]}}]
+let batchMetricsStartMs = 0;
+let batchMetricsLabel = '';      // 배치 식별 라벨 (시나리오 카테고리 or 문장)
+let wristBoneR = null;
+let wristBoneL = null;
+let strokeBoneCache = [];        // [{name, bone}] — animate 루프에서 매 프레임 조회 비용 절감
 const clock = new THREE.Clock();
 const loader = new GLTFLoader();
+const _tmpVec3A = new THREE.Vector3();
+const _tmpVec3B = new THREE.Vector3();
 
 // --- Profile + method state ---
 let currentProfile = null;
@@ -679,6 +707,7 @@ const translateBtnEl = document.getElementById('translate-btn');
 const presetSelectEl = document.getElementById('preset-select');
 const wordInputEl = document.getElementById('word-input');
 const loadBtnEl = document.getElementById('load-btn');
+const metricsSaveBtnEl = document.getElementById('metrics-save-btn');
 const modeFullBtnEl = document.getElementById('mode-full');
 const modeStrokeBtnEl = document.getElementById('mode-stroke');
 const loopBtnEl = document.getElementById('btn-loop');
@@ -844,6 +873,196 @@ function computeMotionProfile(clip) {
 
   return { dur, N, dt, times, deltas, cumulative, velocities, restDists,
            total, peakVel, peakIdx, maxRestDist };
+}
+
+// ============================================================================
+// P5.2 Blending Metrics (Codex 검토 반영 — diagnostic signal만, acceptance criterion 아님)
+// 수집 항목:
+//  - Jerk RMS       : velocities[] 2차 차분 RMS (d³θ/dt³ 근사, rad/s³)
+//  - Boundary disc. : strokeEnd pose vs next strokeStart pose 가중 RMS 각거리 (rad)
+//  - Velocity cont. : strokeEnd 직전 velocity vs next strokeStart 직후 velocity
+//  - Quaternion plateau: STROKE_BONES 6본 quaternion rolling window 각거리 ≤ threshold
+//                     이고 ≥100ms 유지되는 구간 비율 (Method E 휴리스틱 독립 proxy).
+//                     Codex 원안(FK wrist 월드 위치 2cm)은 VLibras flat skeleton에선 불가.
+// (Hold Retention Rate는 수동 ground truth json 존재 시 별도 계산 — 이 함수 범위 외)
+//
+// 사용: endBatch() 직전에 computeBlendingMetrics(batchQueue, batchMetricsSamples, activeMethod)
+// 결과: console.table + JSON blob (window.__metricsAutoDownload 가 true면 자동 다운로드)
+// ============================================================================
+
+// sentence/index.html:314 BONE_WEIGHTS 동일 스펙 (손가락 root + 상박 + 하박 + 손목 + 목)
+const METRIC_BONE_WEIGHTS = {
+  BnOmbroR: 0.6,  BnOmbroL: 0.6,
+  BnBracoR: 1.5,  BnBracoL: 1.5,
+  BnAntBracoR: 1.2, BnAntBracoL: 1.2,
+  BnMaoOrientR: 1.8, BnMaoOrientL: 1.8,
+  BnDedo1R: 0.3,  BnDedo1L: 0.3,
+};
+
+function extractPoseAt(clip, t) {
+  const map = new Map();
+  for (const track of clip.tracks) {
+    if (!(track instanceof THREE.QuaternionKeyframeTrack)) continue;
+    const dotIdx = track.name.lastIndexOf('.');
+    if (dotIdx < 0) continue;
+    const bone = track.name.slice(0, dotIdx);
+    map.set(bone, sampleQuaternionAt(track, t));
+  }
+  return map;
+}
+
+function weightedPoseDistance(poseA, poseB) {
+  let sumW = 0, sumWA2 = 0;
+  for (const bone in METRIC_BONE_WEIGHTS) {
+    const qa = poseA.get(bone);
+    const qb = poseB.get(bone);
+    if (!qa || !qb) continue;
+    const d = Math.min(1, Math.abs(qa.dot(qb)));
+    const ang = 2 * Math.acos(d);
+    sumWA2 += METRIC_BONE_WEIGHTS[bone] * ang * ang;
+    sumW += METRIC_BONE_WEIGHTS[bone];
+  }
+  return sumW === 0 ? null : Math.sqrt(sumWA2 / sumW);
+}
+
+function jerkRmsFromProfile(profile) {
+  if (!profile || !profile.velocities || profile.velocities.length < 3) return null;
+  const v = profile.velocities;
+  const dt = profile.dt || (1 / 60);
+  let sumSq = 0, n = 0;
+  for (let i = 1; i < v.length - 1; i++) {
+    const a1 = (v[i] - v[i - 1]) / dt;
+    const a2 = (v[i + 1] - v[i]) / dt;
+    const j = (a2 - a1) / dt;
+    sumSq += j * j;
+    n++;
+  }
+  return n > 0 ? Math.sqrt(sumSq / n) : null;
+}
+
+function sampleVelocityAt(profile, t) {
+  if (!profile || !profile.velocities) return 0;
+  const idx = Math.max(0, Math.min(profile.velocities.length - 1, Math.round(t / profile.dt)));
+  return profile.velocities[idx];
+}
+
+// Quaternion plateau: rolling window 동안 STROKE_BONES 전부의 각거리가
+// thresholdRad 이하로 유지되고 그 기간이 minDurSec 이상인 구간 비율.
+// VLibras flat bone hierarchy 때문에 Codex 원안(FK wrist 2cm)을 대체한 proxy.
+// Method E의 summed-velocity 휴리스틱과 무관하게 정의되어 순환 평가 회피.
+function computeQuaternionPlateau(samples, thresholdRad = 0.05, minDurSec = 0.1) {
+  if (!samples || samples.length < 3) return { plateauSec: 0, totalSec: 0, rate: 0, windows: 0, thresholdRad, minDurSec };
+  const totalSec = samples[samples.length - 1].t - samples[0].t;
+  if (totalSec <= 0) return { plateauSec: 0, totalSec: 0, rate: 0, windows: 0, thresholdRad, minDurSec };
+  let plateauSec = 0;
+  let windows = 0;
+  let winStart = 0;
+  const exceeds = (i) => {
+    const a = samples[i].quats, b = samples[winStart].quats;
+    if (!a || !b) return true;
+    for (const name in a) {
+      const qa = a[name], qb = b[name];
+      if (!qb) continue;
+      const d = Math.min(1, Math.abs(qa[0]*qb[0] + qa[1]*qb[1] + qa[2]*qb[2] + qa[3]*qb[3]));
+      const ang = 2 * Math.acos(d);
+      if (ang > thresholdRad) return true;
+    }
+    return false;
+  };
+  for (let i = 1; i < samples.length; i++) {
+    if (exceeds(i)) {
+      const winLen = samples[i - 1].t - samples[winStart].t;
+      if (winLen >= minDurSec) { plateauSec += winLen; windows++; }
+      winStart = i;
+    }
+  }
+  const tailLen = samples[samples.length - 1].t - samples[winStart].t;
+  if (tailLen >= minDurSec) { plateauSec += tailLen; windows++; }
+  return { plateauSec, totalSec, rate: plateauSec / totalSec, windows, thresholdRad, minDurSec };
+}
+
+function computeBlendingMetrics(queue, samples, method, label) {
+  if (!queue || queue.length === 0) return null;
+  const perItem = queue.map((item, i) => ({
+    idx: i,
+    raw: item.raw,
+    duration: +item.duration.toFixed(3),
+    strokeStart: +item.strokeStart.toFixed(3),
+    strokeEnd: +item.strokeEnd.toFixed(3),
+    strokeRatio: +((item.strokeEnd - item.strokeStart) / item.duration).toFixed(3),
+    jerkRmsSrc: +((jerkRmsFromProfile(item.profile) || 0).toFixed(2)),
+    peakVel: +((item.profile && item.profile.peakVel || 0).toFixed(3)),
+    endVel: +(sampleVelocityAt(item.profile, item.strokeEnd).toFixed(3)),
+    startVel: +(sampleVelocityAt(item.profile, item.strokeStart).toFixed(3)),
+  }));
+  const boundaries = [];
+  for (let i = 0; i < queue.length - 1; i++) {
+    const a = queue[i], b = queue[i + 1];
+    const poseA = extractPoseAt(a.clip, a.strokeEnd);
+    const poseB = extractPoseAt(b.clip, b.strokeStart);
+    const discRad = weightedPoseDistance(poseA, poseB);
+    boundaries.push({
+      from: a.raw, to: b.raw,
+      boundary_disc_rad: discRad == null ? null : +discRad.toFixed(3),
+      vEnd: +sampleVelocityAt(a.profile, a.strokeEnd).toFixed(3),
+      vStart: +sampleVelocityAt(b.profile, b.strokeStart).toFixed(3),
+      vDelta: +(sampleVelocityAt(b.profile, b.strokeStart) - sampleVelocityAt(a.profile, a.strokeEnd)).toFixed(3),
+    });
+  }
+  const plateau = computeQuaternionPlateau(samples);
+  const jerkValues = perItem.map(r => r.jerkRmsSrc).filter(v => Number.isFinite(v) && v > 0);
+  const boundaryVals = boundaries.map(b => b.boundary_disc_rad).filter(v => Number.isFinite(v));
+  const aggregate = {
+    items: queue.length,
+    jerk_rms_mean: jerkValues.length ? +(jerkValues.reduce((a, b) => a + b, 0) / jerkValues.length).toFixed(2) : null,
+    jerk_rms_max: jerkValues.length ? +Math.max(...jerkValues).toFixed(2) : null,
+    boundary_disc_mean_rad: boundaryVals.length ? +(boundaryVals.reduce((a, b) => a + b, 0) / boundaryVals.length).toFixed(3) : null,
+    boundary_disc_max_rad: boundaryVals.length ? +Math.max(...boundaryVals).toFixed(3) : null,
+    plateau_rate: +(plateau.rate).toFixed(3),
+    plateau_sec: +(plateau.plateauSec).toFixed(2),
+    total_sec: +(plateau.totalSec).toFixed(2),
+  };
+  return {
+    schemaVersion: 1,
+    ts: new Date().toISOString(),
+    method,
+    label: label || '',
+    sampleCount: samples ? samples.length : 0,
+    aggregate,
+    per_item: perItem,
+    boundaries,
+    plateau,
+  };
+}
+
+function downloadMetricsJson(metrics) {
+  if (!metrics) return;
+  try {
+    const blob = new Blob([JSON.stringify(metrics, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safeLabel = (metrics.label || 'batch').replace(/[^\w\-]+/g, '_').slice(0, 40);
+    a.download = `blending-metrics_${metrics.method}_${safeLabel}_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+      a.remove();
+    }, 100);
+  } catch (e) {
+    console.warn('[stroke-test] metrics download failed', e);
+  }
+}
+
+function logMetricsSummary(metrics) {
+  if (!metrics) return;
+  console.group(`[stroke-test] metrics "${metrics.label}" method=${metrics.method}`);
+  console.table(metrics.per_item);
+  if (metrics.boundaries.length > 0) console.table(metrics.boundaries);
+  console.log('aggregate', metrics.aggregate);
+  console.log('plateau', metrics.plateau);
+  console.groupEnd();
 }
 
 // ============================================================================
@@ -1256,6 +1475,16 @@ async function loadModel(name) {
   scene.add(model);
   currentModel = model;
 
+  // P5.2: quaternion plateau metric용 bone cache.
+  wristBoneR = model.getObjectByName('BnMaoOrientR') || null;
+  wristBoneL = model.getObjectByName('BnMaoOrientL') || null;
+  strokeBoneCache = STROKE_BONES
+    .map(boneName => ({ name: boneName, bone: model.getObjectByName(boneName) }))
+    .filter(x => x.bone);
+  if (strokeBoneCache.length !== STROKE_BONES.length) {
+    console.warn('[stroke-test] missing stroke bones:', STROKE_BONES.filter(n => !strokeBoneCache.some(x => x.name === n)));
+  }
+
   const box = new THREE.Box3().setFromObject(model);
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
@@ -1636,6 +1865,10 @@ async function _runBatch(words, label) {
   isPlaying = true;
   clock.getDelta();
   syncInspectionToBatchItem(0);
+  // P5.2 metric collection: reset samples and mark start
+  batchMetricsSamples = [];
+  batchMetricsStartMs = performance.now();
+  batchMetricsLabel = label || '';
   infoWordEl.textContent = `${first.raw} (batch 1/${batchQueue.length})`;
   console.log(
     `[stroke-test] batch start "${label}" (method: ${activeMethod}, fade: ${(BATCH_FADE_SEC * 1000) | 0}ms) ` +
@@ -1654,6 +1887,22 @@ function computeStrokeForMethod(profile, m) {
 }
 
 function endBatch() {
+  // P5.2 메트릭: 배치 종료 시점에 현재 queue + 수집된 wrist 샘플로 블렌딩 품질 지표 계산.
+  // 주의: acceptance criterion 아님, diagnostic signal. 배치가 유효 재생에 도달했을 때만 출력.
+  let metrics = null;
+  if (batchQueue.length > 0 && batchMetricsSamples.length >= 10) {
+    try {
+      metrics = computeBlendingMetrics(batchQueue, batchMetricsSamples, activeMethod, batchMetricsLabel);
+      logMetricsSummary(metrics);
+      window.__lastBlendingMetrics = metrics;
+      window.__lastBatchSamples = batchMetricsSamples.slice();   // debug/inspection
+      if (metricsSaveBtnEl) metricsSaveBtnEl.disabled = false;
+      if (window.__metricsAutoDownload === true) downloadMetricsJson(metrics);
+    } catch (e) {
+      console.warn('[stroke-test] metrics compute failed', e);
+    }
+  }
+
   if (batchMixer && batchOnFinished) {
     try { batchMixer.removeEventListener('finished', batchOnFinished); } catch (_) {}
     batchOnFinished = null;
@@ -1674,6 +1923,7 @@ function endBatch() {
   loadBtnEl.disabled = false;
   if (translateBtnEl) translateBtnEl.disabled = false;
   clearChipActive();
+  batchMetricsSamples = [];   // free memory
   console.log('[stroke-test] batch end');
 }
 
@@ -1690,6 +1940,22 @@ function animate() {
     // finished would let middle clips play into their recovery phase while
     // waiting for the previous clip to hit its duration.
     batchMixer.update(delta);
+    // P5.2: STROKE_BONES quaternion snapshot (quaternion plateau metric용).
+    if (strokeBoneCache.length > 0) {
+      const quats = {};
+      for (let i = 0; i < strokeBoneCache.length; i++) {
+        const q = strokeBoneCache[i].bone.quaternion;
+        quats[strokeBoneCache[i].name] = [q.x, q.y, q.z, q.w];
+      }
+      const currSample = batchQueue[batchCurrentIdx];
+      batchMetricsSamples.push({
+        t: (performance.now() - batchMetricsStartMs) / 1000,
+        itemIdx: batchCurrentIdx,
+        actionTime: currSample ? currSample.action.time : 0,
+        quats,
+      });
+      if (batchMetricsSamples.length > 10000) batchMetricsSamples.shift();
+    }
     const curr = batchQueue[batchCurrentIdx];
     if (curr) {
       // Crossfade trigger: when remaining time until strokeEnd drops below fade
@@ -1757,12 +2023,24 @@ wordInputEl.addEventListener('keydown', (e) => {
   }
 });
 translateBtnEl.addEventListener('click', onTranslateAndBatch);
+if (metricsSaveBtnEl) {
+  metricsSaveBtnEl.addEventListener('click', () => {
+    const m = window.__lastBlendingMetrics;
+    if (m) downloadMetricsJson(m);
+  });
+}
 
-// Populate preset dropdown from PRESET_SENTENCES and wire selection → fill input
+// Populate preset dropdown from PRESET_SENTENCES.
+// Scenario presets (with glosses) → selecting 즉시 runBatch 실행 (translate API 우회).
+// Plain presets (pt only) → 기존 동작: input 채움 + 사용자가 '번역 & 배치' 클릭.
 PRESET_SENTENCES.forEach((p, i) => {
   const opt = document.createElement('option');
   opt.value = String(i);
-  opt.textContent = `${i + 1}. ${p.pt}  —  ${p.en}`;
+  if (p.glosses) {
+    opt.textContent = `${p.tag}  —  ${p.glosses.join(' ')}  (${p.pt})`;
+  } else {
+    opt.textContent = `${i + 1}. ${p.pt}${p.en ? '  —  ' + p.en : ''}`;
+  }
   presetSelectEl.appendChild(opt);
 });
 presetSelectEl.addEventListener('change', (e) => {
@@ -1771,8 +2049,14 @@ presetSelectEl.addEventListener('change', (e) => {
   const preset = PRESET_SENTENCES[idx];
   if (!preset) return;
   sentenceInputEl.value = preset.pt;
-  sentenceInputEl.focus();
   e.target.value = ''; // reset so the same option can be re-selected later
+  if (preset.glosses && preset.glosses.length > 0) {
+    // Scenario preset: runBatch directly (translate API 우회).
+    console.log(`[stroke-test] scenario "${preset.category}" → ${preset.glosses.join(' ')}`);
+    runBatch(preset.glosses.slice(), `[${preset.category}] ${preset.pt}`);
+  } else {
+    sentenceInputEl.focus();
+  }
 });
 
 sentenceInputEl.addEventListener('keydown', (e) => {
