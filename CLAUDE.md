@@ -10,18 +10,19 @@
 **상세 현황 문서**: [`docs-source/claudedocs/project-status.md`](docs-source/claudedocs/project-status.md)
 (현재 상태, 다음 작업, 주간보고, 작업 이력, 알려진 이슈 통합 관리)
 
-## 현재 상태 (2026-04-21)
+## 현재 상태 (2026-04-27)
 
 | 축 | 상태 | 설명 |
 |---|---|---|
 | **ABNT** | ✅ 완료 | SLMB 인코딩/디코딩/재생 파이프라인 전체 검증 완료 |
 | **VLibras (레거시 플레이어)** | 🔄 진행중 | 스켈레톤+상체 재생 성공, 하체 좌표계 보정 미완 |
-| **VLibras (Sentence Player)** | ✅ P1 + P5 Phase A + P5.1 + **P5.3 Step 1 (FADE_MIN 0.20)** 완료 | 문장 → 번역 → 글로스 큐 + 동적 crossfade + stroke trim 재생 (27 글로스) |
-| **Stroke 검증 도구** | ✅ **P5.2 Week 1 완료 (2026-04-21)** | Method A/B/C/D 비교 + motion profile + 배치 + **5 시나리오 preset + 자동 메트릭 4종(Jerk RMS/Boundary/Velocity/Quaternion Plateau) + JSON export** |
-| **블렌딩 재검토 플랜** | ✅ **Codex 2차 검토 반영 완료** | `docs-source/claudedocs/plan-sentence-blending-redesign.md` (P5.2→P5.3→P6a→P6b spike→P6.5 hybrid eval) |
-| **수동 hold ground truth** | ⏳ scaffold | `docs-source/claudedocs/hold-ground-truth.json` (5 시나리오 라벨 자리 준비) |
+| **VLibras (Sentence Player)** | ✅ P1 + P5 Phase A + P5.1 + **P5.3 Step 1-3 완료 (2026-04-27)** | 문장 → 번역 → 글로스 큐 + 동적 crossfade + stroke trim 재생 (27 글로스) + **손가락 8본 가중치(handshape) + bimanual union 토글** |
+| **Stroke 검증 도구** | ✅ **P5.2 Week 1 + Week 2 코드부 완료 (2026-04-27)** | Method A/B/C/D + **E (M-H 인식) + G (bimanual separated)** 비교 + motion profile + 5 시나리오 preset + 자동 메트릭 4종(Jerk RMS/Boundary/Velocity/Quaternion Plateau) + JSON export |
+| **블렌딩 재검토 플랜** | ✅ Codex 2차 검토 반영 완료 | `docs-source/claudedocs/plan-sentence-blending-redesign.md` (P5.2→P5.3→P6a→P6b spike→P6.5 hybrid eval) |
+| **수동 hold ground truth** | ⏳ scaffold (0/5 라벨됨) | `docs-source/claudedocs/hold-ground-truth.json` — **사용자 frame-by-frame annotation 필요 (P6a 결정 게이트)** |
+| **PR #1** | 🔄 open | https://github.com/hyunia69/sls_brazil_player/pull/1 (P5.2 Week 2 + P5.3 Step 2-3, 머지 게이트 대기) |
 
-**오늘 중점 (2026-04-21)**: 플랜 수립 + Codex 2차 검토 반영 + P5.2 Week 1 구현 완료. 상세: [`docs-source/claudedocs/project-status.md`](docs-source/claudedocs/project-status.md) 상단 "오늘의 작업 중점" 섹션.
+**오늘 중점 (2026-04-27)**: 사용자 부재 + 전권 위임 상태에서 gstack `/office-hours` → P5.2 Week 2 코드부 (Method E/G) → P5.3 Step 2-3 (손가락 본 + bimanual 토글) → Playwright 회귀 → PR #1 생성까지 자동 풀 사이클. 상세: [`docs-source/claudedocs/project-status.md`](docs-source/claudedocs/project-status.md) 상단 "오늘의 작업 중점" 섹션.
 
 ## 디렉토리 구조
 
@@ -34,8 +35,8 @@ sls_brazil_player/
 │   │   ├── slmb/                     # [완료] SLMB 파이프라인 검증 (ABNT)
 │   │   ├── vlibras/                  # VLibras 레거시 플레이어
 │   │   ├── vlibras-v3/              # VLibras 단일 글로스 검증 (Three.js tracks)
-│   │   ├── sentence/                 # [완료] Sentence Player (P1/P5 Phase A/P5.1) - stroke trim + 동적 crossfade
-│   │   ├── sentence-stroke-test/     # [완료] Stroke 검출 검증 도구 (Method A/B/C/D + motion profile)
+│   │   ├── sentence/                 # [완료] Sentence Player (P1/P5 Phase A/P5.1/P5.3 Step 1-3) - stroke trim + 동적 crossfade + handshape + bimanual 토글
+│   │   ├── sentence-stroke-test/     # [완료] Stroke 검출 검증 도구 (Method A/B/C/D/E/G + motion profile + 5 시나리오 preset + 메트릭 export)
 │   │   └── viewer/                   # 3D 모델 뷰어
 │   ├── avatars/                      # 공유 아바타 모델
 │   │   ├── abnt/                     # ABNT 46조인트 (avatarModel, pcmodel)
@@ -102,12 +103,28 @@ python -m http.server 8080
 
 ## 다음 작업
 
-1. **[다음 중점] P5.2 Week 2** — `sentence-stroke-test/`에 Method E(M-H 인식) / F(SQUAD prototype) / G(bimanual separated) 추가 + 4-row 문장 비교 모드 + 5 시나리오 수동 hold annotation (`hold-ground-truth.json` 채우기). 플랜: `docs-source/claudedocs/plan-sentence-blending-redesign.md`
-2. **P6a**: Week 2 결과 승자를 production `sentence/index.html`에 포팅 + targetted/lax transition 이원화 (3주)
-3. **P6b**: SQUAD Three.js spike (3일 Go/No-Go)
-4. **P6.5**: 3-track hybrid eval (KSL naturalness + 원격 LIBRAS comprehensibility + 전문가 fallback)
-5. Sentence Player 어휘 확장 (현재 27 → 100 글로스, 본 재검토 scope 외 별도 트랙)
-6. VLibras 하체 좌표계 보정 (레거시 vlibras/vlibras-v3 플레이어)
-7. `tools/vlibras2slmb/parsing/asset_bundle.py` UnityPy 1.25+ 마이그레이션
-8. VLibras→SLMB 변환 파이프라인 완성 (P2)
-9. Sentence Player 타임라인 seek 활성화 (P4)
+### 🔥 즉시 (사용자 복귀 시 1-2시간)
+1. **PR #1 review + merge 결정** — https://github.com/hyunia69/sls_brazil_player/pull/1 diff 확인 → 로컬 Test plan 5개 체크 → 머지
+2. **수동 hold annotation** — `docs-source/claudedocs/hold-ground-truth.json` 5 시나리오 × frame-by-frame 채우기 (개발자 1차 + 동료 cross-check). **P6a 결정의 유일한 acceptance criterion**.
+3. **5 시나리오 메트릭 비교** — `sentence-stroke-test/`에서 ①~⑤ × Method A/C/E/G batch JSON export → 수동 HPR과 비교 → P6a 승자 후보 식별
+
+### 🔄 다음 (P6a 승자 결정 후)
+4. **P6a (3주)**: Week 2 결과 승자를 production `sentence/index.html` `computeStrokeRange`에 포팅 (feature flag `window.__blendingAlgo`) + targetted/lax transition 이원화
+5. **P5.2 Week 2 잔여**: 4-row stacked 차트 비교 모드(같은 문장 × 4 method 동시 비교 UI) — 본 세션은 차트에 E/G 라인만 추가, batch 비교 UI는 별도
+
+### 🧪 spike / eval
+6. **P6b (3일 Go/No-Go)**: SQUAD Three.js spike — 60fps 유지 & jerk 개선 둘 다 미달성 시 즉시 폐기
+7. **P6.5 (2주)**: 3-track hybrid eval — KSL naturalness 3-5명 + 원격 LIBRAS 2-3명 + 전문가 fallback
+
+### 📋 Scope 외 (별도 트랙)
+8. Sentence Player 어휘 확장 (27 → 100 글로스) — `tools/vlibras2slmb/data/spike_glosses.txt` 편집 + `precompute_threejs.py` 재실행
+9. VLibras 하체 좌표계 보정 (레거시 vlibras/vlibras-v3 플레이어)
+10. `tools/vlibras2slmb/parsing/asset_bundle.py` UnityPy 1.25+ 마이그레이션
+11. VLibras→SLMB 변환 파이프라인 완성 (P2)
+12. Sentence Player 타임라인 seek 활성화 (P4)
+
+### 📂 의사결정 게이트 요약 (`plan-sentence-blending-redesign.md` 발췌)
+- **P5.2 종료 (현재 위치)**: Method E가 A보다 우수? → 수동 라벨 HPR + 자동 메트릭 + 시각 A/B
+- **P6a 종료**: P6b 시도? → 안정 + 시간 여유
+- **P6b 중간**: SQUAD Go? → 60fps & jerk 개선
+- **P6.5 종료**: rollout? → Track A 과반 + Track B 저하 없음
