@@ -319,13 +319,18 @@ function getFadeMin() {
 
 // 모션 블렌딩에 사용할 본 가중치.
 // 손목(BnMaoOrient)과 상박(BnBraco)이 시각적으로 가장 큰 기여.
-// 손가락은 root 본(BnDedo1R/L)만 포함 — handshape 차이 부족 시 Phase A 후 확장.
+// P5.3 Step 2 (2026-04-27): BnDedo2..5 R/L 8본 추가 (각 0.15) — handshape 차이 반영.
+// 다섯 손가락 root만 포함, 마디(distal) 본은 미포함(가중치 합산 폭발 방지).
 const BONE_WEIGHTS = {
   BnOmbroR: 0.6,  BnOmbroL: 0.6,
   BnBracoR: 1.5,  BnBracoL: 1.5,
   BnAntBracoR: 1.2, BnAntBracoL: 1.2,
   BnMaoOrientR: 1.8, BnMaoOrientL: 1.8,
   BnDedo1R: 0.3,  BnDedo1L: 0.3,
+  BnDedo2R: 0.15, BnDedo2L: 0.15,
+  BnDedo3R: 0.15, BnDedo3L: 0.15,
+  BnDedo4R: 0.15, BnDedo4L: 0.15,
+  BnDedo5R: 0.15, BnDedo5L: 0.15,
   BnPescoco: 0.3,
 };
 
@@ -349,6 +354,11 @@ const STROKE_BONES = [
   'BnAntBracoR', 'BnAntBracoL',
   'BnMaoOrientR', 'BnMaoOrientL',
 ];
+// P5.3 Step 3 (2026-04-27): bimanual union용 좌/우 분리 본 세트.
+// 런타임 토글: window.__bimanualUnion = true 시 computeStrokeRange가 R/L 독립
+// 측정 후 strokeStart=min, strokeEnd=max 로 union을 잡는다. 기본 OFF (회귀 위험 0).
+const STROKE_BONES_R = ['BnBracoR', 'BnAntBracoR', 'BnMaoOrientR'];
+const STROKE_BONES_L = ['BnBracoL', 'BnAntBracoL', 'BnMaoOrientL'];
 
 let currentModel = null;
 let bundleIndex = null;   // {count, glosses: [{raw,key,file,duration}], failures}
@@ -449,18 +459,40 @@ function extractPoseAt(clip, t) {
 // STROKE_BONES의 합산 angular delta를 누적해 head/tail 임계 비율에 도달하는 시점을
 // stroke 경계로 잡는다. padding 적용 후 최소 길이로 clamp.
 // 반환: { strokeStart, strokeEnd } (둘 다 클립 내 초 단위)
+//
+// P5.3 Step 3 (2026-04-27): bimanual union 분기 추가.
+// window.__bimanualUnion === true 시 STROKE_BONES_R / STROKE_BONES_L 독립 측정 후
+// strokeStart=min, strokeEnd=max 로 union. 기본은 통합(기존 동작 보존).
 function computeStrokeRange(clip) {
+  const bimanual = (typeof window !== 'undefined') && window.__bimanualUnion === true;
+  if (!bimanual) return computeStrokeRangeForBones(clip, STROKE_BONES);
+  const dur = clip.duration;
+  if (!isFinite(dur) || dur <= 0) return { strokeStart: 0, strokeEnd: 0 };
+  const rangeR = computeStrokeRangeForBones(clip, STROKE_BONES_R);
+  const rangeL = computeStrokeRangeForBones(clip, STROKE_BONES_L);
+  // 한 쪽이 motion 0이라 fallback(전체 dur)인 경우는 무시하고 운동측만 사용.
+  const fullR = (rangeR.strokeStart === 0 && rangeR.strokeEnd >= dur - 1e-3);
+  const fullL = (rangeL.strokeStart === 0 && rangeL.strokeEnd >= dur - 1e-3);
+  if (fullR && fullL) return { strokeStart: 0, strokeEnd: dur };
+  let s = dur, e = 0;
+  if (!fullR) { s = Math.min(s, rangeR.strokeStart); e = Math.max(e, rangeR.strokeEnd); }
+  if (!fullL) { s = Math.min(s, rangeL.strokeStart); e = Math.max(e, rangeL.strokeEnd); }
+  if (e <= s) return { strokeStart: 0, strokeEnd: dur };
+  return { strokeStart: s, strokeEnd: e };
+}
+
+function computeStrokeRangeForBones(clip, bones) {
   const dur = clip.duration;
   if (!isFinite(dur) || dur <= 0) return { strokeStart: 0, strokeEnd: 0 };
 
-  // STROKE_BONES에 해당하는 quaternion track만 모음
+  // 지정 본에 해당하는 quaternion track만 모음
   const tracks = [];
   for (const track of clip.tracks) {
     if (!(track instanceof THREE.QuaternionKeyframeTrack)) continue;
     const dot = track.name.lastIndexOf('.');
     if (dot < 0) continue;
     const bone = track.name.slice(0, dot);
-    if (STROKE_BONES.indexOf(bone) < 0) continue;
+    if (bones.indexOf(bone) < 0) continue;
     if (track.values.length < 4) continue;
     tracks.push(track);
   }

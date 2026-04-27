@@ -364,6 +364,8 @@
   .method-row[data-method="B"] { border-left-color: #c39ce0; }
   .method-row[data-method="C"] { border-left-color: #ff9c47; }
   .method-row[data-method="D"] { border-left-color: #ffcc33; }
+  .method-row[data-method="E"] { border-left-color: #5fc7ff; }
+  .method-row[data-method="G"] { border-left-color: #ff7eb6; }
   .method-row.active { background: rgba(67, 97, 238, 0.12); }
   .method-label {
     display: flex;
@@ -531,6 +533,28 @@
       </div>
       <div class="method-result">-</div>
     </div>
+    <div class="method-row" data-method="E">
+      <label class="method-label">
+        <input type="radio" name="active-method" value="E">
+        <strong>E.</strong> <span class="desc">M-H model (hold detection)</span>
+      </label>
+      <div class="method-sliders">
+        <label>vel ≤ peak × <input type="range" class="slider" data-param="velPct" min="5" max="30" value="15" step="1"><span class="slider-val">15%</span></label>
+        <label>rest ≥ max × <input type="range" class="slider" data-param="restPct" min="50" max="95" value="80" step="1"><span class="slider-val">80%</span></label>
+      </div>
+      <div class="method-result">-</div>
+    </div>
+    <div class="method-row" data-method="G">
+      <label class="method-label">
+        <input type="radio" name="active-method" value="G">
+        <strong>G.</strong> <span class="desc">Bimanual separated (R/L union)</span>
+      </label>
+      <div class="method-sliders">
+        <label>head <input type="range" class="slider" data-param="headPct" min="5" max="35" value="12" step="1"><span class="slider-val">12%</span></label>
+        <label>tail <input type="range" class="slider" data-param="tailPct" min="5" max="35" value="12" step="1"><span class="slider-val">12%</span></label>
+      </div>
+      <div class="method-result">-</div>
+    </div>
   </div>
 </div>
 
@@ -621,6 +645,11 @@ const STROKE_BONES = [
   'BnAntBracoR', 'BnAntBracoL',
   'BnMaoOrientR', 'BnMaoOrientL',
 ];
+// P5.2: Method G용 좌/우 분리 본 세트.
+// dominant/non-dominant 글로스의 stroke 경계가 어긋날 때, 각 손을 독립으로
+// 측정한 뒤 strokeStart=min, strokeEnd=max로 union을 잡는다.
+const STROKE_BONES_R = ['BnBracoR', 'BnAntBracoR', 'BnMaoOrientR'];
+const STROKE_BONES_L = ['BnBracoL', 'BnAntBracoL', 'BnMaoOrientL'];
 
 // --- Scene ---
 const canvas = document.getElementById('canvas');
@@ -690,15 +719,18 @@ const _tmpVec3B = new THREE.Vector3();
 
 // --- Profile + method state ---
 let currentProfile = null;
-const currentMethodResults = { A: null, B: null, C: null, D: null };
+const currentMethodResults = { A: null, B: null, C: null, D: null, E: null, G: null };
 let activeMethod = 'A';
 const methodParams = {
   A: { headPct: 12, tailPct: 12 },
   B: { thresholdPct: 45 },
   C: { restPct: 30 },
   D: { dropPct: 40 },
+  E: { velPct: 15, restPct: 80 },   // P5.2: M-H hold detection (Liddell & Johnson 1989)
+  G: { headPct: 12, tailPct: 12 },  // P5.2: bimanual separated, methodA on R/L individually
 };
-const METHOD_COLORS = { A: '#8fe8a0', B: '#c39ce0', C: '#ff9c47', D: '#ffcc33' };
+const METHOD_COLORS = { A: '#8fe8a0', B: '#c39ce0', C: '#ff9c47', D: '#ffcc33', E: '#5fc7ff', G: '#ff7eb6' };
+const ALL_METHODS = ['A', 'B', 'C', 'D', 'E', 'G'];
 
 // --- DOM refs ---
 const loadingEl = document.getElementById('loading');
@@ -812,7 +844,10 @@ function sampleQuaternionAt(track, t) {
 // - cumulative[i]  = sum of deltas[0..i-1]
 // - velocities[i]  = deltas[i] / dt  (rad/s)
 // - restDists[i]   = sum of angular(pose_i, pose_0) across STROKE_BONES (rad)
-function computeMotionProfile(clip) {
+function computeMotionProfile(clip, boneList) {
+  // boneList 미지정 시 기존 STROKE_BONES 사용 (Method A/B/C/D 호출자 영향 0).
+  // Method G는 boneList=STROKE_BONES_R 또는 STROKE_BONES_L 로 호출.
+  const bones = boneList || STROKE_BONES;
   const dur = clip.duration;
   if (!isFinite(dur) || dur <= 0) return null;
 
@@ -822,7 +857,7 @@ function computeMotionProfile(clip) {
     const dot = track.name.lastIndexOf('.');
     if (dot < 0) continue;
     const bone = track.name.slice(0, dot);
-    if (STROKE_BONES.indexOf(bone) < 0) continue;
+    if (bones.indexOf(bone) < 0) continue;
     if (track.values.length < 4) continue;
     tracks.push(track);
   }
@@ -1212,6 +1247,104 @@ function methodD(profile, dropPct) {
   };
 }
 
+// ============================================================================
+// Method E — Movement-Hold model (Liddell & Johnson 1989)
+// 수어 음운론의 hold = velocity가 거의 없고, restPose에서 충분히 멀어진 자세.
+// Hold 정의: velocities[i] ≤ peakVel × velPct AND restDists[i] ≥ maxRestDist × restPct
+//            AND 그 상태가 ≥100ms 지속.
+// stroke = [첫 hold 시작 - PAD_HEAD, 마지막 hold 끝 + PAD_TAIL].
+// hold가 0개면 fallback: methodA(profile, 0.12, 0.12) — 단일 ballistic 동작용.
+// ============================================================================
+const E_MIN_HOLD_SEC = 0.10;
+function methodE(profile, velRatio, restRatio) {
+  if (!profile) return null;
+  const { dur, dt, N, velocities, restDists, peakVel, maxRestDist } = profile;
+  if (peakVel === 0 || maxRestDist === 0) {
+    return { strokeStart: 0, strokeEnd: dur, clampTriggered: false };
+  }
+  const velThresh = peakVel * velRatio;
+  const restThresh = maxRestDist * restRatio;
+  // sample i (0..N-2): velocities[i]는 i↔i+1 구간 평균, restDists[i+1]은 sample i+1의 rest 거리.
+  // 보수적으로 양 끝점 모두 조건 만족하는지 검사.
+  const isHold = new Array(N - 1);
+  for (let i = 0; i < N - 1; i++) {
+    isHold[i] = (velocities[i] <= velThresh) &&
+                (restDists[i] >= restThresh) &&
+                (restDists[i + 1] >= restThresh);
+  }
+  const minSamples = Math.max(1, Math.ceil(E_MIN_HOLD_SEC / dt));
+  const holdRanges = [];
+  let runStart = -1;
+  for (let i = 0; i < isHold.length; i++) {
+    if (isHold[i]) {
+      if (runStart < 0) runStart = i;
+    } else {
+      if (runStart >= 0) {
+        const runLen = i - runStart;
+        if (runLen >= minSamples) holdRanges.push([runStart, i - 1]);
+        runStart = -1;
+      }
+    }
+  }
+  if (runStart >= 0) {
+    const runLen = isHold.length - runStart;
+    if (runLen >= minSamples) holdRanges.push([runStart, isHold.length - 1]);
+  }
+  if (holdRanges.length === 0) {
+    // Fallback: hold 미검출 (예: 매우 짧거나 단일 ballistic 글로스) → methodA.
+    return methodA(profile, 0.12, 0.12);
+  }
+  const firstStart = holdRanges[0][0];
+  const lastEnd = holdRanges[holdRanges.length - 1][1];
+  let s = firstStart * dt - STROKE_PAD_HEAD;
+  let e = (lastEnd + 1) * dt + STROKE_PAD_TAIL;
+  if (s < 0) s = 0;
+  if (e > dur) e = dur;
+  if (e <= s) { s = 0; e = dur; }
+  let clampTriggered = false;
+  const minLen = dur * MIN_STROKE_RATIO;
+  if (e - s < minLen) {
+    clampTriggered = true;
+    const center = (s + e) / 2;
+    s = Math.max(0, center - minLen / 2);
+    e = Math.min(dur, s + minLen);
+    if (e - s < minLen) s = Math.max(0, e - minLen);
+  }
+  return { strokeStart: s, strokeEnd: e, clampTriggered };
+}
+
+// ============================================================================
+// Method G — Bimanual separated (right/left independent, union)
+// STROKE_BONES_R / STROKE_BONES_L 로 mini-profile을 따로 계산하고, 각각에 methodA를
+// 적용한 뒤 strokeStart=min, strokeEnd=max 로 union. 양손 비대칭 글로스(FAMILIA, AGUA)에서
+// dominant 정지 + non-dominant 운동이 동시에 일어날 때 strokeEnd가 어긋나는 문제 해소.
+// 한 쪽 손 motion이 0이면 다른 쪽만 사용.
+// ============================================================================
+function methodG(clip, headRatio, tailRatio) {
+  if (!clip) return null;
+  const dur = clip.duration;
+  const profileR = computeMotionProfile(clip, STROKE_BONES_R);
+  const profileL = computeMotionProfile(clip, STROKE_BONES_L);
+  const hasR = !!(profileR && profileR.total > 1e-6);
+  const hasL = !!(profileL && profileL.total > 1e-6);
+  if (!hasR && !hasL) return { strokeStart: 0, strokeEnd: dur, clampTriggered: false };
+  const rangeR = hasR ? methodA(profileR, headRatio, tailRatio) : null;
+  const rangeL = hasL ? methodA(profileL, headRatio, tailRatio) : null;
+  let strokeStart = dur;
+  let strokeEnd = 0;
+  if (rangeR) {
+    strokeStart = Math.min(strokeStart, rangeR.strokeStart);
+    strokeEnd   = Math.max(strokeEnd,   rangeR.strokeEnd);
+  }
+  if (rangeL) {
+    strokeStart = Math.min(strokeStart, rangeL.strokeStart);
+    strokeEnd   = Math.max(strokeEnd,   rangeL.strokeEnd);
+  }
+  if (strokeEnd <= strokeStart) return { strokeStart: 0, strokeEnd: dur, clampTriggered: false };
+  const clampTriggered = !!((rangeR && rangeR.clampTriggered) || (rangeL && rangeL.clampTriggered));
+  return { strokeStart, strokeEnd, clampTriggered };
+}
+
 function computeMethod(name) {
   if (!currentProfile) return null;
   const p = methodParams[name];
@@ -1219,19 +1352,21 @@ function computeMethod(name) {
   if (name === 'B') return methodB(currentProfile, p.thresholdPct);
   if (name === 'C') return methodC(currentProfile, p.restPct);
   if (name === 'D') return methodD(currentProfile, p.dropPct);
+  if (name === 'E') return methodE(currentProfile, p.velPct / 100, p.restPct / 100);
+  if (name === 'G') return currentClip ? methodG(currentClip, p.headPct / 100, p.tailPct / 100) : null;
   return null;
 }
 
 function recomputeAllMethods() {
   if (!currentProfile) return;
-  for (const m of ['A', 'B', 'C', 'D']) {
+  for (const m of ALL_METHODS) {
     currentMethodResults[m] = computeMethod(m);
   }
   updateMethodRows();
 }
 
 function updateMethodRows() {
-  for (const m of ['A', 'B', 'C', 'D']) {
+  for (const m of ALL_METHODS) {
     const row = document.querySelector(`.method-row[data-method="${m}"]`);
     if (!row) continue;
     const resultEl = row.querySelector('.method-result');
@@ -1379,8 +1514,8 @@ function renderChart() {
   // Method vertical lines (stroke boundaries)
   const yTop = CHART_PAD.T;
   const yBot = CHART_PAD.T + PLOT_H;
-  const methodStagger = { A: -8, B: -2, C: 4, D: 10 };  // label y offset inside plot
-  for (const m of ['A', 'B', 'C', 'D']) {
+  const methodStagger = { A: -8, B: -2, C: 4, D: 10, E: 22, G: 34 };  // label y offset inside plot
+  for (const m of ALL_METHODS) {
     const r = currentMethodResults[m];
     if (!r) continue;
     const col = METHOD_COLORS[m];
@@ -1560,7 +1695,7 @@ async function loadWordClip(word) {
     clock.getDelta();
 
     // Per-method console summary
-    const parts = ['A', 'B', 'C', 'D'].map(m => {
+    const parts = ALL_METHODS.map(m => {
       const r = currentMethodResults[m];
       if (!r) return `${m}:-`;
       return `${m}[${r.strokeStart.toFixed(3)}→${r.strokeEnd.toFixed(3)}]`;
@@ -1789,7 +1924,7 @@ async function _runBatch(words, label) {
       const data = await resp.json();
       const clip = buildClipFromJson(data);
       const profile = computeMotionProfile(clip);
-      const r = computeStrokeForMethod(profile, activeMethod);
+      const r = computeStrokeForMethod(profile, activeMethod, clip);
       if (!r || !profile) return null;
       return {
         raw: entry.raw,
@@ -1876,13 +2011,15 @@ async function _runBatch(words, label) {
   );
 }
 
-function computeStrokeForMethod(profile, m) {
+function computeStrokeForMethod(profile, m, clip) {
   if (!profile) return null;
   const p = methodParams[m];
   if (m === 'A') return methodA(profile, p.headPct / 100, p.tailPct / 100);
   if (m === 'B') return methodB(profile, p.thresholdPct);
   if (m === 'C') return methodC(profile, p.restPct);
   if (m === 'D') return methodD(profile, p.dropPct);
+  if (m === 'E') return methodE(profile, p.velPct / 100, p.restPct / 100);
+  if (m === 'G') return clip ? methodG(clip, p.headPct / 100, p.tailPct / 100) : null;
   return null;
 }
 
