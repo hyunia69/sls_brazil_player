@@ -32,20 +32,31 @@
 
 ---
 
-## 오늘의 작업 중점 (2026-04-21)
+## 오늘의 작업 중점 (2026-04-27)
 
-**집중 대상**: `docs-source/claudedocs/plan-sentence-blending-redesign.md` + `public/players/sentence-stroke-test/` + `public/players/sentence/`
+**집중 대상**: `public/players/sentence-stroke-test/` (Method E/G 추가) + `public/players/sentence/` (P5.3 Step 2-3 저위험 개선)
 
-**목표 (완료)**: 블렌딩 로직 전면 재검토 플랜 수립 → Codex 2차 검토 반영 → **P5.2 Week 1 실행** (메트릭 baseline + 시나리오 preset + production FADE_MIN 상향).
+**목표 (완료)**: 사용자 부재 + 전권 위임 상태에서 gstack `/office-hours` → design doc → 자동 코드 작업 → Playwright 회귀 → PR(머지/배포 STOP) 풀 사이클 자동 실행. 플랜 출처: `docs-source/claudedocs/plan-sentence-blending-redesign.md` Phase P5.2 Week 2 + P5.3 Step 2-3.
 
-**진행 상황 (2026-04-21)**
-- ✅ **플랜 수립 완료**: `plan-sentence-blending-redesign.md` — 4 phase (P5.2 실험대 + P5.3 저위험 + P6a 포팅 + P6b SQUAD spike + P6.5 hybrid eval). 학술/산업 조사 포함.
-- ✅ **Codex 2차 검토 반영**: 순환 평가 방지 수동 라벨링 프로토콜, 자동 메트릭→diagnostic 격하, P6 분할, 문헌 인용 순화, P7·27→100 확장 scope 외.
-- ✅ **P5.3 Step 1**: `sentence/index.html` `FADE_MIN` 0.12 → 0.20 (`getFadeMin()` 헬퍼 + `window.__fadeMin` override).
-- ✅ **P5.2 Step 1-2**: `sentence-stroke-test/index.html` 5 시나리오 preset(즉시 배치) + 자동 메트릭 4종(Jerk RMS, Boundary disc., Velocity cont., Quaternion Plateau) + 메트릭 저장 버튼 + JSON export.
-- ✅ **Quaternion proxy 채택**: Codex 원안 FK 월드 위치는 VLibras flat skeleton에서 불가 확인 → STROKE_BONES 6본 rolling window 각거리로 독립 proxy 구현.
-- ✅ **`hold-ground-truth.json` scaffold**: 5 시나리오 수동 라벨링 자리 확보.
-- ⏳ **다음**: Week 2 Method E/F/G + 수동 hold annotation + 4-row 문장 비교 차트.
+**진행 상황 (2026-04-27)**
+- ✅ **office-hours design doc**: `~/.gstack/projects/sls_brazil_player/admin-main-design-20260427-blending-redo.md` — 가설 4종(hold 손실/bimanual/일률 fade/SQUAD), Approach A/B/C 제시, 사용자 복귀 시 게이트 명시.
+- ✅ **P5.2 Week 2 (코드부, sentence-stroke-test)**:
+  - **Method E (M-H 인식)**: `methodE(profile, velRatio, restRatio)` 추가. velocity ≤ peakVel × 15% AND restDist ≥ maxRest × 80% AND ≥100ms 지속 구간을 hold로 라벨, stroke = [첫 hold 시작 - 50ms, 마지막 hold 끝 + 50ms]. hold 0개면 fallback methodA(0.12, 0.12). MIN_STROKE_RATIO 안전망 동일 적용.
+  - **Method G (bimanual separated)**: `methodG(clip, headRatio, tailRatio)` 추가. `STROKE_BONES_R` (BnBracoR/AntBracoR/MaoOrientR) / `STROKE_BONES_L` (BnBracoL/AntBracoL/MaoOrientL) 분리 motion profile → 각각 methodA → strokeStart=min, strokeEnd=max union. 한 쪽 motion 0이면 운동측만 사용.
+  - **`computeMotionProfile`에 boneList 인자 추가** (default `STROKE_BONES`, 기존 호출자 영향 0). Method G의 R/L mini-profile 계산용.
+  - **`ALL_METHODS = ['A','B','C','D','E','G']`** 상수화. `recomputeAllMethods` / `updateMethodRows` / `renderChart` (METHOD_COLORS + methodStagger 확장) / `loadWordClip` console summary 모두 ALL_METHODS 사용.
+  - **HTML/CSS UI**: method-row[data-method="E"] / [G] 추가, 슬라이더 4종(velPct/restPct, headPct/tailPct), 색상 #5fc7ff (E) / #ff7eb6 (G).
+  - **`computeStrokeForMethod`에 clip 인자 추가** — batch 큐에서 G 케이스 호출 가능.
+- ✅ **P5.3 Step 2 (sentence/index.html, production 저위험)**: `BONE_WEIGHTS`에 손가락 root 5본 (`BnDedo2..5R/L` 8개, 각 0.15) 추가 — handshape 차이 반영. distal 마디는 미포함(가중치 합산 폭발 방지).
+- ✅ **P5.3 Step 3 (sentence/index.html, production 저위험, OFF 기본)**: `STROKE_BONES_R/L` 분리 상수 + `computeStrokeRangeForBones(clip, bones)` 추출, `computeStrokeRange`에 `window.__bimanualUnion === true` 분기. ON 시 R/L 독립 stroke 후 strokeStart=min, strokeEnd=max union. 한 쪽이 motion 0(fallback)이면 운동측만 사용. 기본 OFF로 회귀 위험 0.
+- ✅ **Playwright 검증 (BOM 글로스, dur=1.800s)**: 6개 method 모두 정상 결과 산출 — A[0.233,1.597] 75.8%, B[0.061,1.769] 94.9%, C[0.183,1.190] 55.9%, D[1.190,1.373] 10.2%, E[0.571,1.291] ⚠40.0% (clamp), G[0.142,1.658] 84.3%. sentence-stroke-test 콘솔 에러 0(favicon 404 무관). sentence/index.html 콘솔 에러 0.
+- ⏳ **사용자 복귀 시 게이트**:
+  1. `docs-source/claudedocs/hold-ground-truth.json` 5 시나리오 frame-by-frame 수동 hold annotation (개발자 1차 + 동료 cross-check).
+  2. 5 시나리오 × Method A/C/E/G batch 메트릭 export → 수동 HPR 비교 → P6a 승자 결정.
+  3. 시각 A/B 검수 후 `window.__bimanualUnion=true` production rollout 결정.
+  4. P6b SQUAD spike(별도 3일 격리) Go/No-Go.
+
+**이전 진행 (2026-04-21)** — 압축 요약: 플랜 수립 + Codex 2차 검토 + P5.2 Step 1-2(자동 메트릭 4종 + 5 시나리오 preset + JSON export) + P5.3 Step 1(FADE_MIN 0.12→0.20) + Quaternion plateau proxy(VLibras flat skeleton 대응) + hold-ground-truth.json scaffold.
 
 ---
 
@@ -135,40 +146,49 @@
 
 ## 주간보고
 
-**기간**: 2026-04-14 ~ 2026-04-21 | **컨텍스트**: Sentence Player 블렌딩 로직 원점 재검토 + 검증 실험대 구축 + 재설계 플랜 수립
+**기간**: 2026-04-14 ~ 2026-04-21
+**컨텍스트**: 문장을 입력하면 단어 단위 수어 동작을 이어 재생하는 Sentence Player에서, 각 단어 애니메이션이 "차렷 → 핵심 동작 → 차렷" 구조라 연달아 재생할 때 매 단어마다 손이 차렷까지 내려갔다 올라와 부자연스러움이 과제. 전환 로직을 원점 재검토하고 검증 실험대를 구축하는 주간.
 
 - 완료
-  1. 검증 도구 ([`sentence-stroke-test`](public/players/sentence-stroke-test/index.html))
-     1) J1: 2026-04-15 신설
-        - Method A/B/C/D + motion profile SVG, ~1200 라인, production 무수정
-     2) J2: 2026-04-20 UI/UX 재구성
-        - 2단 컨트롤 바, 글로스 칩, profile↔배치 sync, preset 5개, VLibras 토큰 파서
-  2. 블렌딩 재설계
-     1) J3: 2026-04-21 플랜 문서
-        - [`plan-sentence-blending-redesign.md`](docs-source/claudedocs/plan-sentence-blending-redesign.md) 4-phase + Codex 1/2차 검토 반영
-     2) J4: 2026-04-21 P5.3 Step 1 (저위험 튜닝)
-        - production [`sentence/index.html`](public/players/sentence/index.html) FADE_MIN 0.12→0.20 + `getFadeMin()` 훅
-     3) J5+J6: 2026-04-21 P5.2 Week 1 메트릭 baseline
-        - `computeBlendingMetrics` 4종(Jerk/Boundary/Velocity/Plateau) + JSON export
-        - 5 시나리오 preset + Quaternion proxy STROKE_BONES 6본 rolling window
+  1. 블렌딩 로직 재설계 계획 수립 (2026-04-21)
+     1) 학술·산업 선행 조사 후 4단계 마이그레이션 플랜 문서화
+        - 수어 음운론(Movement-Hold 모델), 구면 보간(SQUAD) 등 학술 기법 + VLibras·JASigning 등 타 시스템 구현 조사
+        - 외부 검토 2회 반영 — 단계 분할, 평가 순환 방지 프로토콜, 문헌 인용 수위 조정
+  2. 검증 전용 실험 플레이어 구축 (운영 코드와 격리)
+     1) 네 가지 동작 구간(stroke) 검출 알고리즘 동시 비교 도구 신설 (2026-04-15)
+        - 누적 각변화 / 피크 유지 / 정지점+홀드 / 피크 드롭 네 가지를 나란히 비교
+        - 모션 프로파일(속도·누적·정지거리) SVG 차트로 실시간 시각화
+     2) UI/UX 재구성 + 프리셋·번역 파서 보강 (2026-04-20)
+        - 2단 컨트롤 바, 글로스 칩, 차트↔배치 재생 동기화
+        - 고정 문장 5개 프리셋(`Bom dia amigo` 등) + VLibras 번역 응답 정규화 파서
+  3. 운영 플레이어 저위험 튜닝 적용 (2026-04-21)
+     1) 단어 간 최소 크로스페이드 시간 0.12초 → 0.20초 상향
+        - "빠른 수어 동작, 느린 전환" 가이드 반영 + 런타임 오버라이드 훅으로 추후 튜닝 용이
+  4. 블렌딩 품질 자동 측정 체계 구축 (2026-04-21)
+     1) 품질 지표 4종 + 시나리오 5개 + JSON 내보내기
+        - 저크(움직임 급격도) / 경계 불연속성 / 속도 연속성 / 정지구간 비율 자동 계산
+        - 단일·다중 피크·양손·홀드·빠른 전환 다섯 시나리오 고정 배치 버튼
+     2) 아바타 본 구조 한계로 회전 기반 대안 지표 채택
+        - 사용 중 아바타는 본 계층이 평면 구조라 손 월드 좌표가 애니메이션에 반응하지 않음을 확인
+        - 6개 핵심 본의 회전 누적 변화로 정지구간을 독립 측정하는 방식으로 전환
 - 진행중
-  1. J7: 수동 hold ground truth
-     1) 🔄 scaffold
-        - [`hold-ground-truth.json`](docs-source/claudedocs/hold-ground-truth.json) 5 시나리오 라벨 자리 (Week 2 채움)
+  1. 전문가 주석용 정답 라벨 자리 준비
+     1) 5개 시나리오 JSON 파일에 수동 라벨 스키마 scaffold
+        - 내용은 다음 주 전문가 주석으로 채움 — 자동 지표가 자연스러움을 대신 판단하는 평가 순환을 방지하려는 목적
 - 예정
-  1. J8: P5.2 Week 2
-     1) Method E/F/G + 수동 annotation
-        - M-H hold 인식 / SQUAD prototype / bimanual separated + 4-row 비교
-  2. J9: P6a 승자 포팅 + targetted/lax (3주)
-     1) production `sentence/index.html`에 Week 2 승자 포팅
-  3. J10: P6b SQUAD Three.js spike (3일)
-     1) Go/No-Go 판정
-  4. J11: P6.5 3-track hybrid eval
-     1) KSL naturalness + 원격 LIBRAS + 전문가 fallback
+  1. 알고리즘 3종 추가 도입 + 수동 주석 확보
+     1) 수어 언어학 기반 Movement-Hold, 구면 보간(SQUAD) 프로토타입, 양손 분리 처리
+        - 네 가지 방법을 문장 단위로 나란히 비교하는 UI + 전문가 주석으로 교차 검증
+  2. 선정된 알고리즘을 운영 플레이어에 포팅 (3주)
+     1) 의미있는 전환(targetted)과 완만한 전환(lax)을 맥락별로 구분 적용
+  3. 구면 보간(SQUAD) 기술 타당성 프로토타입 (3일)
+     1) Three.js 환경에서 구현 가능성 Go/No-Go 판정
+  4. 최종 품질 평가 (3축)
+     1) 한국 수어 자연스러움 평가 + 원격 브라질 수어(LIBRAS) 이해도 평가 + 전문가 fallback
 
-**핵심 수치 (Method C, Playwright)**: Hold `TER CASA` Plateau **0.305** / Rapid `EU IR ESTUDAR` Jerk RMS **1733.29** (≈2.7× Hold) / BOM strokeEnd 오버런 14ms 이내 정지
+**핵심 수치 (정지점+홀드 알고리즘, 자동화 테스트 기준)**: 홀드 시나리오(`TER CASA`) 정지구간 비율 **0.305**(최고) / 빠른 전환 시나리오(`EU IR ESTUDAR`) 움직임 급격도 **홀드 대비 약 2.7배** / 단어 경계 끊김 14ms(1프레임 미만) 이내 정지.
 
-**핵심 결정**: 자동 메트릭은 acceptance criterion 아닌 **diagnostic signal** (HPR 순환 평가 방지). Method C 권장이나 production 포팅은 P6a에서 수동 annotation + 다수 지표 수렴 + 시각 A/B 후 결정. P7 리타겟팅·27→100 어휘 확장은 재설계 scope 외.
+**핵심 결정**: 자동 지표는 합격/불합격 기준이 아닌 **진단용 신호**로만 사용(지표 자체가 자연스러움을 보장하지는 않으므로). 최종 알고리즘 선택은 전문가 주석 + 다수 지표 수렴 + 시각 A/B 비교를 모두 거친 뒤 운영 플레이어 포팅 단계에서 결정. 다른 아바타 리타게팅·어휘 확장(27 → 100 글로스)은 이번 재설계 범위 외.
 
 ---
 
