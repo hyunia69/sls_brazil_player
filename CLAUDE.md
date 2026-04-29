@@ -45,7 +45,7 @@ sls_brazil_player/
 - **ABNT 스켈레톤**: 46 조인트, 30fps, cm 단위 (ABNT NBR 25606)
 - **VLibras 스켈레톤**: 84 본, Bn 접두사 포르투갈어 명명
 - **glTF scale 이슈**: `model_external.gltf`의 RootNode scale=[100,100,100] → Three.js에서 `×0.01` 필수
-- **좌표 변환**: Unity LH → glTF RH: position `[x,y,z]→[x,y,-z]`, quaternion `[x,y,z,w]→[-x,-y,z,w]`
+- **좌표 변환**: Unity LH → RH. 진실 출처는 `tools/vlibras2slmb/math_utils/coordinate.py` (`(w,x,y,z)→(w,-x,y,-z)`, `(x,y,z)→(-x,y,-z)`). precompute_threejs.py는 Icaro bind 추가 매핑을 적용. 위 1줄 약식은 historical이므로 상세는 [`data-pipeline-and-handedness.md`](docs-source/claudedocs/data-pipeline-and-handedness.md) §3 참조.
 - **배포**: Vercel 정적 사이트(`public/`), Git push 자동 배포
 - **에셋 경로**: 모든 플레이어는 절대 경로 (`/avatars/...`, `/animations/...`)
 
@@ -82,11 +82,17 @@ python -m http.server 8080
 | 파일 | 내용 |
 |---|---|
 | `docs-source/claudedocs/project-status.md` | **현재 상태·다음 작업·작업 이력 통합 관리** |
-| `docs-source/claudedocs/project-analysis.md` | 프로젝트 종합 분석 |
-| `docs-source/claudedocs/technical-findings.md` | 기술 검증 결과 |
-| `docs-source/claudedocs/implement-player-bvh-slmb.md` | player_bvh_slmb 구현 상세 |
-| `docs-source/claudedocs/design-player-vlibras.md` | VLibras 플레이어 설계 |
+| `docs-source/claudedocs/data-pipeline-and-handedness.md` | **VLibras 5단계 변환 파이프라인 + LH/RH 좌표 변환 + 운영 변환 아키텍처** |
+| `docs-source/claudedocs/sentence-notation.md` | **Sentence Player NMS 처리** — 어휘 NMS 분포 + 마커 NMS 클립 + 위젯 sync 흐름 |
+| `docs-source/claudedocs/stroke-detection-methods.md` | Stroke 검출 6 method (A/B/C/D/E/G) 요약 |
 | `docs-source/claudedocs/plan-sentence-blending-redesign.md` | Sentence Player 블렌딩 재검토 플랜 (P5.2 → P6.5) |
 | `docs-source/claudedocs/vlibras-translation-api.md` | VLibras 번역 API 스펙 |
 | `docs-source/claudedocs/avatar-handedness-analysis.md` | 메인 vs. 위젯 손잡이(chirality) 차이 분석 |
 | `docs-source/claudedocs/hold-ground-truth.json` | 수동 hold annotation scaffold (P6a 결정 게이트) |
+| `docs-source/claudedocs/technical-findings.md` | 초기 기술 검증 결과 (ABNT BVH/glTF 호환성 등 — 일부 historical) |
+| `docs-source/claudedocs/implement-player-bvh-slmb.md` | SLMB Pipeline Player 구현 상세 (`public/players/slmb/`) |
+| `docs-source/claudedocs/annex_d_progress_report.md` | ABNT Annex D 구현 진행 보고서 |
+| `docs-source/claudedocs/project-analysis.md` | 초기 프로젝트 분석 (historical, 일부 obsolete 경로 포함) |
+| `docs-source/claudedocs/design-player-vlibras.md` | VLibras 플레이어 초기 설계 (historical, 구현 완료 후 자료) |
+| `docs-source/claudedocs/sentence-vlibras-plugin-integration-plan.md` | VLibras 위젯 통합 plan (구현 완료, 참고용) |
+| `docs-source/claudedocs/plan-sentence-blending-redesign_gemini.md` | 블렌딩 재검토 플랜 Gemini 리뷰 (참고용) |
