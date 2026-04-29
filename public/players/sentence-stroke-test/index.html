@@ -781,7 +781,7 @@ function hideError() {
 
 // --- SYNC: sentence/index.html:368-370 (ASCII normalize: NFKD + 대문자) ---
 function asciiKey(gloss) {
-  return gloss.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  return gloss.replace(/[\[\]]/g, '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toUpperCase();
 }
 
 // --- SYNC: sentence/index.html:373-377 (bundle index loader) ---
@@ -1853,15 +1853,15 @@ function runBatch(glosses, label) {
 
 // --- VLibras translate API → gloss list → batch playback ---
 // Normalize VLibras translation tokens into playable gloss candidates:
-//  - [PONTO] / [INTERROGAÇÃO] / [EXCLAMAÇÃO] bracketed punctuation → drop entirely
+//  - [PONTO] / [INTERROGAÇÃO] / [EXCLAMAÇÃO] bracket markers → keep as-is
+//    (the VLibras dictionary has real clips for these — visual hand gestures
+//     such as drawing a "?" in the air. asciiKey() strips the brackets so
+//     "[INTERROGAÇÃO]" matches bundle key "INTERROGACAO".)
 //  - TOKEN(+) / TOKEN(-) trailing parenthesised intensity → strip, keep base gloss
-//  - A&B synonym compounds → keep first (primary) synonym
-// These are stable VLibras annotation conventions, not lexical glosses, so they
-// never correspond to bundle entries; stripping is always safe.
+//  - A&B synonym/classifier compounds → keep first (primary) synonym
 function normalizeVlibrasTokens(tokens) {
   return tokens
     .map(t => {
-      if (/^\[[^\]]+\]$/.test(t)) return null;
       const amp = t.indexOf('&');
       if (amp > 0) t = t.slice(0, amp);
       t = t.replace(/\([^)]*\)$/, '');
@@ -1896,7 +1896,7 @@ async function onTranslateAndBatch() {
       return;
     }
     console.log(`[stroke-test] translated → ${glosses.join(' ')}`);
-    syncToVLibrasPlugin(text);  // fire-and-forget; 토글 OFF면 내부에서 즉시 return
+    syncToVLibrasPlugin(text, glosses);  // fire-and-forget; 토글 OFF면 내부에서 즉시 return
     runBatch(glosses, text);
   } catch (e) {
     showError(`번역 실패: ${e.message}`);
@@ -2293,10 +2293,59 @@ window.__strokeTest = {
   }),
 };
 
-// --- VLibras 공식 위젯 동기화 ---
-// 토글 ON일 때만 같은 텍스트를 플러그인 경로(Plugin.prototype.translate)로 흘려보낸다.
-// 메인 Three.js 파이프라인은 절대 건드리지 않고, 실패해도 throw하지 않는다.
-async function syncToVLibrasPlugin(text) {
+// --- VLibras 공식 위젯 동기화 (SYNC: sentence/index.html) ---
+// 토글 ON일 때만 동기화한다. 메인 Three.js 파이프라인은 절대 건드리지 않고, 실패해도 throw하지 않는다.
+//
+// 위젯의 사전 키 매칭 정책:
+//   - 번역 API는 ASCII 응답 (예: "VOCE BOM [INTERROGAÇÃO]")
+//   - 위젯의 사전 키는 악센트 보존 ("VOCÊ", "FAMÍLIA", "NÃO" 등)
+//   - 위젯이 자체 번역(plugin.translate)으로 처리하면 ASCII vs 악센트 미스매칭이 일어나
+//     "VOCE"가 사전에 없는 단어로 인식되어 *지문자(fingerspelling) 폴백*이 발생.
+//
+// 해결: 우리가 이미 받은 ASCII 글로스 시퀀스를 사전 카탈로그(`/bundles`)의 raw 형태로
+// 변환한 뒤 plugin.play()에 직접 주입해서 위젯의 자체 번역을 *우회*한다.
+
+const VLIBRAS_DICT_CATALOG_URL = 'https://dicionario2.vlibras.gov.br/bundles';
+let _vlibrasDictMap = null;
+let _vlibrasDictPromise = null;
+
+async function loadVlibrasDictMap() {
+  if (_vlibrasDictMap) return _vlibrasDictMap;
+  if (_vlibrasDictPromise) return _vlibrasDictPromise;
+  _vlibrasDictPromise = (async () => {
+    try {
+      const resp = await fetch(VLIBRAS_DICT_CATALOG_URL);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const list = await resp.json();
+      const map = new Map();
+      for (const raw of list) {
+        if (typeof raw !== 'string') continue;
+        const norm = raw.normalize('NFKD').replace(/[̀-ͯ]/g, '').toUpperCase();
+        if (!map.has(norm)) map.set(norm, raw);
+      }
+      console.log(`[vlibras-sync] dictionary catalog loaded: ${map.size} keys`);
+      _vlibrasDictMap = map;
+      return map;
+    } catch (err) {
+      console.warn('[vlibras-sync] dictionary catalog fetch failed:', err);
+      _vlibrasDictMap = new Map();
+      return _vlibrasDictMap;
+    }
+  })();
+  return _vlibrasDictPromise;
+}
+
+function toRawGlossString(asciiGlosses, dictMap) {
+  if (!Array.isArray(asciiGlosses) || !dictMap) return '';
+  return asciiGlosses
+    .map(g => {
+      const norm = g.normalize('NFKD').replace(/[̀-ͯ]/g, '').toUpperCase();
+      return dictMap.get(norm) || g;
+    })
+    .join(' ');
+}
+
+async function syncToVLibrasPlugin(text, asciiGlosses) {
   try {
     const wrapper = document.querySelector('[vw]');
     if (!wrapper || !wrapper.classList.contains('enabled')) return;  // 토글 OFF
@@ -2310,6 +2359,22 @@ async function syncToVLibrasPlugin(text) {
       }
       return;
     }
+
+    // Tier 0 (preferred): 우리가 이미 받은 글로스 시퀀스를 raw로 변환해 plugin.play()에 직접 주입.
+    if (Array.isArray(asciiGlosses) && asciiGlosses.length > 0 && typeof plugin.play === 'function') {
+      try {
+        const dictMap = await loadVlibrasDictMap();
+        const rawGloss = toRawGlossString(asciiGlosses, dictMap);
+        if (rawGloss) {
+          plugin.play(rawGloss);
+          return;
+        }
+      } catch (err) {
+        console.warn('[vlibras-sync] direct gloss injection failed; falling back to translate(text):', err);
+      }
+    }
+
+    // Tier 1 (fallback): 위젯의 자체 번역에 맡김.
     if (typeof plugin.translate === 'function') {
       try {
         plugin.translate(trimmed);
@@ -2326,7 +2391,7 @@ async function syncToVLibrasPlugin(text) {
         console.warn('[vlibras-sync] plugin.player.translate threw:', err);
       }
     }
-    console.warn('[vlibras-sync] No translate method available on plugin instance.');
+    console.warn('[vlibras-sync] No play/translate method available on plugin instance.');
   } catch (err) {
     console.warn('[vlibras-sync] Unexpected error (ignored):', err);
   }

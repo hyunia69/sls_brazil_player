@@ -1,5 +1,5 @@
 {
-  "count": 27,
+  "count": 30,
   "glosses": [
     {
       "raw": "CASA",
@@ -162,6 +162,24 @@
       "key": "FALAR",
       "file": "FALAR.threejs.json",
       "duration": 2.3
+    },
+    {
+      "raw": "[INTERROGAÇÃO]",
+      "key": "INTERROGACAO",
+      "file": "INTERROGACAO.threejs.json",
+      "duration": 1.6333
+    },
+    {
+      "raw": "[PONTO]",
+      "key": "PONTO",
+      "file": "PONTO.threejs.json",
+      "duration": 1.3
+    },
+    {
+      "raw": "[EXCLAMAÇÃO]",
+      "key": "EXCLAMACAO",
+      "file": "EXCLAMACAO.threejs.json",
+      "duration": 1.6333
     }
   ],
   "failures": []

@@ -11,7 +11,7 @@
 
 ---
 
-## 현재 상태 (2026-04-27 기준)
+## 현재 상태 (2026-04-29 기준)
 
 | 축 | 상태 | 위치 |
 |---|---|---|
@@ -19,43 +19,49 @@
 | VLibras 레거시 플레이어 (vlibras, vlibras-v3) | 🔄 상체 완료, 하체 미완 | `public/players/vlibras*/` |
 | Sentence Player (production) | ✅ P1 + P5 Phase A + P5.1 + P5.3 Step 1-3 | `public/players/sentence/` |
 | Stroke 검증 도구 | ✅ Method A/B/C/D + E + G + 자동 메트릭 4종 + JSON export | `public/players/sentence-stroke-test/` |
-| 사전 변환 글로스 (27개) | ✅ | `public/animations/vlibras/bundles/` |
+| 사전 변환 글로스 (30개) | ✅ 27 어휘 + 3 마커(INTERROGAÇÃO/PONTO/EXCLAMAÇÃO) | `public/animations/vlibras/bundles/` |
 | Bundle 변환기 | ✅ | `tools/vlibras2slmb/batch/precompute_threejs.py` |
 | 모델 뷰어 / 랜딩 / 문서 페이지 | ✅ | `public/players/viewer/`, `public/index.html`, `public/docs/` |
 | VLibras→SLMB 오프라인 변환기 | 🔄 매핑 완료, 파이프라인 미완 | `tools/vlibras2slmb/` |
 | 블렌딩 재검토 플랜 | ✅ Codex 2차 검토 반영 | `docs-source/claudedocs/plan-sentence-blending-redesign.md` |
 | 수동 hold ground truth | ⏳ scaffold (0/5 라벨됨) | `docs-source/claudedocs/hold-ground-truth.json` — **P6a 결정 게이트** |
-| PR #1 (P5.2 Week 2 + P5.3 Step 2-3) | 🔄 open, 머지 대기 | https://github.com/hyunia69/sls_brazil_player/pull/1 |
+| PR #1 (P5.2 Week 2 + P5.3 Step 2-3) | ✅ merged (2026-04-27) | `5f5a464` |
+| 데이터 파이프라인 단일 진실 출처 문서 | ✅ 신규 | `docs-source/claudedocs/data-pipeline-and-handedness.md` |
+| 운영 변환 아키텍처 결정 (CORS 검증) | ⏳ 대기 | (옵션 A·B·C·하이브리드) |
+| Git/gh 인증 환경 정비 | ✅ 완료 | git config + `gh auth login` |
 
 ---
 
 ## 다음 작업
 
-### 🔥 즉시 (사용자 복귀 시 1-2시간)
+### 🔥 즉시
 
-1. **PR #1 review + 머지 결정** — Test plan 5개 체크 → 머지 → `git pull`
-2. **수동 hold annotation** — `hold-ground-truth.json` 5 시나리오를 `sentence-stroke-test/` single-word 모드에서 frame-by-frame 라벨링 (개발자 1차 + 동료 cross-check). **P6a 결정의 유일한 acceptance criterion**.
-3. **5 시나리오 메트릭 비교** — preset ①~⑤ × Method A/C/E/G 4번 batch → JSON export → 수동 HPR과 비교 → 가장 시나리오-적합한 method 식별
+1. **CORS 검증** (5분) — `curl -I -H "Origin: https://sls-brazil-player.vercel.app" https://dicionario2.vlibras.gov.br/2018.3.1/WEBGL/CASA` → 운영 변환 아키텍처(A/B/C/하이브리드) 결정의 전제. 상세: [`data-pipeline-and-handedness.md`](data-pipeline-and-handedness.md) §6.
+2. **운영 아키텍처 의사결정** — 어휘 규모·신규 어휘 빈도·백엔드 운영 가능성 4가지 입력으로 옵션 결정. 권장: 하이브리드 A+B (자주 쓰는 어휘 사전변환 + long-tail 서버 lazy compute).
+3. **수동 hold annotation** — `hold-ground-truth.json` 5 시나리오를 `sentence-stroke-test/` single-word 모드에서 frame-by-frame 라벨링 (개발자 1차 + 동료 cross-check). **P6a 결정의 유일한 acceptance criterion**.
+4. **5 시나리오 메트릭 비교** — preset ①~⑤ × Method A/C/E/G 4번 batch → JSON export → 수동 HPR과 비교 → 가장 시나리오-적합한 method 식별
 
 ### 🔄 다음 (P6a 승자 결정 후)
 
-4. **P6a (3주)** — Week 2 winner를 production `sentence/index.html`의 `computeStrokeRange`에 포팅. Feature flag `window.__blendingAlgo = 'A' | 'E' | 'hybrid'` (기본 OFF). **targetted vs lax transition** 이원화: gloss end-pose가 static(velocity ≈ 0 ≥100ms) → targetted, 아니면 lax. FADE_MIN 최종값 P5.2 데이터로 재확정.
-5. **P5.2 Week 2 잔여** — 4-row stacked 차트 비교 모드 (같은 문장 × 4 method 동시 재생 + row마다 차트 누적). 본 세션은 차트에 E/G 라인만 추가, batch 비교 UI는 별도.
+5. **P6a (3주)** — Week 2 winner를 production `sentence/index.html`의 `computeStrokeRange`에 포팅. Feature flag `window.__blendingAlgo = 'A' | 'E' | 'hybrid'` (기본 OFF). **targetted vs lax transition** 이원화: gloss end-pose가 static(velocity ≈ 0 ≥100ms) → targetted, 아니면 lax. FADE_MIN 최종값 P5.2 데이터로 재확정.
+6. **P5.2 Week 2 잔여** — 4-row stacked 차트 비교 모드 (같은 문장 × 4 method 동시 재생 + row마다 차트 누적). 본 세션은 차트에 E/G 라인만 추가, batch 비교 UI는 별도.
 
 ### 🧪 Spike / Eval
 
-6. **P6b (3일 Go/No-Go)** — SQUAD Three.js spike. 60fps 유지 & jerk 개선 둘 다 미달성 시 즉시 폐기.
-7. **P6.5 (2주)** — 3-track hybrid eval: KSL 3-5명(Track A) + 원격 LIBRAS 2-3명(Track B) + 전문가 fallback(Track C). Rollout 게이트: Track A 과반 + Track B 저하 없음.
+7. **P6b (3일 Go/No-Go)** — SQUAD Three.js spike. 60fps 유지 & jerk 개선 둘 다 미달성 시 즉시 폐기.
+8. **P6.5 (2주)** — 3-track hybrid eval: KSL 3-5명(Track A) + 원격 LIBRAS 2-3명(Track B) + 전문가 fallback(Track C). Rollout 게이트: Track A 과반 + Track B 저하 없음.
 
 ### 📋 Scope 외 (별도 트랙)
 
 - **어휘 확장 (27 → 100)**: `tools/vlibras2slmb/data/spike_glosses.txt` 편집 → `precompute_threejs.py` 재실행. `sys.stdout.reconfigure(encoding='utf-8')` 보강 필요.
+- **운영 변환 옵션 B (서버 on-demand)** 구현 — 위 즉시 작업 1·2번 결과에 따라. `precompute_threejs.py`를 서버 엔드포인트로 래핑 + Redis 캐시. 상세: [`data-pipeline-and-handedness.md`](data-pipeline-and-handedness.md) §5.
 - **VLibras 하체 좌표계 보정** (P3): Sentence Player의 legacy retarget 로직을 레거시 플레이어에 적용.
 - **`asset_bundle.py` UnityPy 1.25+ 마이그레이션** (P2 선행 차단): uppercase `X/Y/Z/W` → lowercase. `precompute_threejs.py`의 `_read_unity_clip()`을 공용 모듈로 승격.
 - **VLibras→SLMB 변환 파이프라인 완성** (P2): VLibras 84본 → ABNT 46조인트 리타겟팅.
 - **Sentence Player 타임라인 seek** (P4): 글로벌 시간 → 로컬 클립 시간 역산.
 - **비수지(non-manual) 노테이션** (P6): VLibras 번역 API의 `[NEG]`/`[INT]` 마커 + face blendshape 추출.
 - **다른 아바타 리타겟팅** (P7): Sentence Player에서 ABNT avatarModel 런타임 리타겟.
+- **`CLAUDE.md` 좌표 변환 1줄 검증**: 실제 `coordinate.py`와 차이 발견(2026-04-29). precompute_threejs.py의 추가 변환 매핑까지 포함한 정확한 표현으로 갱신 필요.
 
 ### 의사결정 게이트 요약
 
@@ -67,6 +73,21 @@
 ---
 
 ## 주간보고
+
+### 2026-04-28 ~ 2026-04-29 — PR 머지 + 데이터 파이프라인 단일 진실 출처 정리
+
+PR #1 머지 후 후속 검증 + 운영 서비스 전환을 위한 사전 분석 주간. 코드 변경은 없고 문서·운영 환경 정비 중심.
+
+- **[완료]** PR #1 머지 (`5f5a464`) — Method E/G + bimanual + 손가락 가중치가 production에 반영. P5.2 Week 2 코드부 종료.
+- **[완료]** Sentence 플레이어 테스트 추가 (`d280bc7`).
+- **[완료]** Git/gh 인증 환경 정비 — `git config credential.https://github.com.username hyunia69`로 푸시 시 계정 선택 팝업 제거. `gh auth login` keyring 등록(scope: repo·workflow·read:org·gist).
+- **[완료]** **데이터 변환 파이프라인 단일 진실 출처 문서 작성** — [`data-pipeline-and-handedness.md`](data-pipeline-and-handedness.md). AssetBundle → CASA_full → ik_fixed → CASA.anim → CASA_threejs → bundles 5단계 흐름, LH→RH 수학(`(w,x,y,z)→(w,-x,y,-z)`, `(x,y,z)→(-x,y,-z)`), vlibras vs vlibras-v3 데이터 핸들링 차이 4영역(본 8개·시간 1프레임 shift·scale 트랙·rest pose 출처).
+- **[완료]** **운영 변환 아키텍처 옵션 평가** — A(사전 일괄, 현재) / B(서버 on-demand) / C(브라우저 직접) / 하이브리드 A+B 비교. 옵션 C 기술 가능성 평가: CORS 검증 필요 + UnityFS 파서 + LZMA 디코더 + 변환 로직 ~105KB 추가, 첫 호출 150–430ms. 권장: 하이브리드 A+B (변환 코드를 Python 한 군데에 유지).
+- **[발견]** **`CLAUDE.md`의 좌표 변환 1줄 요약과 실제 `coordinate.py` 불일치** — `coordinate.py`가 진실 출처. 별도 verification 후 `CLAUDE.md` 갱신 필요 (precompute_threejs.py의 추가 변환까지 반영).
+- **[검토]** "vlibras에 v3 로직 적용 가능한가" — 시나리오 A·B·C 분석 결과 모두 비추천. 손목 회전 누락은 데이터 출처 자체의 문제(Stage 3 retargeting이 BnMaoOrient 제외). 통합 필요 시 데이터 파이프라인 수정이 정답.
+- **[예정]** CORS 검증 → 운영 아키텍처 결정 → 옵션 B 구현(필요 시).
+
+**핵심 결정**: 자주 쓰는 어휘는 사전변환 CDN, long-tail은 서버 lazy compute가 가장 자연스러운 운영 토폴로지. 브라우저 직접 변환(C)은 백엔드 절대 불가한 환경에서만 의미.
 
 ### 2026-04-22 ~ 2026-04-27 — Method E/G + 운영 저위험 개선
 
@@ -100,6 +121,40 @@ P5.2 Week 1 실험대(자동 메트릭 + 5 시나리오 preset)에 알고리즘 
 ---
 
 ## 작업 이력
+
+### 2026-04-29 (오후) — Annex C 마커 NMS 클립 + 위젯 sync에 raw 글로스 직접 주입
+
+**핵심 발견 (2단계)**:
+1. **마커 키는 사전에 *2종류씩* 존재**: VLibras 사전 카탈로그(22,508 키)에 `INTERROGAÇÃO`(어휘 = "물음표"라는 명사, 손가락 16본 활성)와 `[INTERROGAÇÃO]`(NMS 마커, 얼굴 6본 + `BnCabeca` 머리 회전 활성)이 *서로 다른 클립*으로 등록됨. PONTO/EXCLAMAÇÃO도 동일 패턴. 즉 VLibras는 *문법 NMS 클립을 가지고 있다* — 이전 NMS_Analysis.md §5.2의 "규칙 기반 휴리스틱" 추정이 *부분적으로 옳았음*. 단, JS는 합성 안 하고 Unity가 사전에서 NMS 키를 직접 검색.
+2. **위젯이 ASCII 응답을 사전 검색해 미스매칭**: 번역 API는 항상 ASCII 응답(`VOCE`)이지만 사전 키는 악센트 보존(`VOCÊ`)이라 위젯이 자체 번역 시 지문자 폴백 발생. 해결: 사전 카탈로그(`/bundles`, ~313KB)로 ASCII↔raw 매핑을 만들어 `plugin.play(rawGlossString)`으로 위젯에 직접 주입 → 위젯 자체 번역 우회.
+
+**구현**:
+- 마커 클립 3종을 *대괄호 포함 키*(`[INTERROGAÇÃO]` 등)로 다시 다운로드/변환 → `INTERROGACAO/PONTO/EXCLAMACAO.threejs.json` 내용 교체. 클립 크기 54KB→43KB, duration 2.97s→1.63s 등(NMS 클립이 어휘 클립보다 짧음).
+- `bundles/index.json`: 마커 raw를 `"[INTERROGAÇÃO]"`로 변경(chip UI 정확성), duration 업데이트, count 27→30.
+- `sentence/index.html` + `sentence-stroke-test/index.html`:
+  - `asciiKey()`에 대괄호 제거 추가 (`[INTERROGAÇÃO]` → `INTERROGACAO` 정규화 매칭)
+  - `loadVlibrasDictMap()` + `toRawGlossString()` 신규 — 사전 카탈로그 lazy fetch, ASCII 글로스 시퀀스를 raw로 변환
+  - `syncToVLibrasPlugin(text, asciiGlosses)` 시그니처 변경 — Tier 0(plugin.play로 raw 주입) + Tier 1(translate 폴백). `handleTranslate`/`onTranslateAndBatch`에서 `glosses` 인자 전달.
+- `sentence-stroke-test/index.html` `normalizeVlibrasTokens()` 마커 null 반환 제거(보존하여 사전 매칭).
+
+**검증** (사용자 확인): `Você gosta de estudar?` → 두 아바타 모두 VOCE 정상 수어 + 마지막에 NMS 머리·눈썹 동작 (이전: 위젯이 VOCE를 지문자로, 마커를 손가락 ? 그리기로 잘못 재생).
+
+**파일**: `public/animations/vlibras/bundles/{INTERROGACAO,PONTO,EXCLAMACAO}.threejs.json`(교체), `public/animations/vlibras/bundles/index.json`, `public/players/sentence/index.html`, `public/players/sentence-stroke-test/index.html`.
+
+**한계**: `(+)` 강조와 인칭 일치 동사(`1S_AJUDAR_2S` 등)는 별개 라인업. 사전 카탈로그에는 인칭 일치 동사 클립도 있어(예: `1S_AJUDAR_2S`) 추후 활용 가능.
+
+### 2026-04-29 — 데이터 파이프라인 문서 정리 + 운영 아키텍처 사전 분석
+
+- **신규 문서**: `data-pipeline-and-handedness.md` — VLibras AssetBundle → bundles 5단계 변환 + LH→RH 좌표 변환 수학 + vlibras vs v3 차이 + 운영 아키텍처 옵션을 단일 진실 출처로 통합.
+- **검증 작업** (코드 미변경): Python으로 `CASA.anim.json`(76 quat, 153 트랙, delta) vs `CASA_threejs.json`(83 quat, 249 트랙, abs) 직접 비교 — 본 8개 차이(`BnMaoOrientL/R` 등), 시간 1프레임 shift, scale 83 트랙 추가, quaternion 공통 트랙 max diff 2×10⁻⁴ 확인.
+- **vlibras 런타임 변환 시나리오 검토** (코드 미변경): 시나리오 A(anim.json만 흉내), B(ik_fixed.json 런타임 retarget), C(threejs.json 직접 fetch) 모두 비추천. 손목 회전 누락은 데이터 출처 문제이지 변환 시점 문제가 아님.
+- **환경 정비**: `git config credential.https://github.com.username hyunia69` (push 팝업 제거), `gh auth login` (keyring, scope: repo·workflow·read:org·gist). MCP는 gstack/superpowers가 CLI 기반이라 별도 설정 불필요.
+- **문서 갱신**: `project-status.md`(현재 상태 + 다음 작업 + 주간보고), `CLAUDE.md`(문서 인덱스), 구식 경로(`slmb-player/`, `data/`) 정리.
+
+### 2026-04-28 — PR #1 머지 + 테스트 추가
+
+- PR #1 (`p5-blending-week2-method-eg-bimanual`) 머지 — `5f5a464`. Method E/G + bimanual + 손가락 가중치가 production 반영. P5.2 Week 2 코드부 종료.
+- Sentence 플레이어 테스트 추가 (`d280bc7`).
 
 ### 2026-04-27 — P5.2 Week 2 코드부 + P5.3 Step 2-3
 
@@ -178,6 +233,9 @@ P5.2 Week 1 실험대(자동 메트릭 + 5 시나리오 preset)에 알고리즘 
 5. **스파이크 어휘 한정 (27)** — 미싱 글로스는 ⚠️ 표시. 융합 토큰 폴백(`BOM_DIA` → `BOM`+`DIA`) 적용됨. 100 확장 예정.
 6. **Windows Python cp949 인코딩** — `precompute_threejs.py` 비ASCII print에서 `UnicodeEncodeError`. 우회: `PYTHONIOENCODING=utf-8`. 스크립트 상단 `sys.stdout.reconfigure(encoding='utf-8')` 보강 필요.
 7. **메인 vs. 위젯 chirality 차이** — 메인은 signer 오른손, 위젯은 왼손. 둘 다 LIBRAS valid (학술 컨벤션 vs. VLibras 공식 채널). 수정 없음. 상세: [`avatar-handedness-analysis.md`](avatar-handedness-analysis.md).
+8. **vlibras 플레이어 손목 회전 누락** — `CASA.anim.json`이 `BnMaoOrientR/L.quaternion` 트랙을 갖지 않음 (Stage 3 retargeting이 IK target으로 분류해 제외). 통합하려면 데이터 파이프라인 수정 필요. 상세: [`data-pipeline-and-handedness.md`](data-pipeline-and-handedness.md) §4-2.
+9. **`CLAUDE.md` 좌표 변환 1줄 요약 검증 필요** — `coordinate.py`가 진실 출처(2026-04-29 발견). precompute_threejs.py가 추가 적용하는 Icaro bind 매핑까지 포함한 정확한 표현으로 갱신 필요.
+10. **VLibras 사전 CDN CORS 미검증** — `dicionario2.vlibras.gov.br/2018.3.1/WEBGL/<GLOSS>` 브라우저 직접 fetch 가능 여부 미확인. 운영 아키텍처(특히 옵션 C) 결정의 전제.
 
 ---
 
@@ -199,6 +257,8 @@ P5.2 Week 1 실험대(자동 메트릭 + 5 시나리오 preset)에 알고리즘 
 | 번역 API 스펙 | `docs-source/claudedocs/vlibras-translation-api.md` |
 | 블렌딩 재검토 플랜 | `docs-source/claudedocs/plan-sentence-blending-redesign.md` |
 | 수동 hold 라벨 scaffold | `docs-source/claudedocs/hold-ground-truth.json` |
+| **데이터 파이프라인 + 좌표 변환** | `docs-source/claudedocs/data-pipeline-and-handedness.md` |
+| Stroke 검출 6 method | `docs-source/claudedocs/stroke-detection-methods.md` |
 
 ---
 
