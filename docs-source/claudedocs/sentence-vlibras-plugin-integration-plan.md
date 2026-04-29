@@ -1,10 +1,10 @@
-# Sentence Player에 VLibras 공식 플러그인 통합 — 구현 계획
+# Sentence Player에 VLibras 공식 플러그인 통합 — 구현 계획 (Historical)
 
-작성일: 2026-04-13
-구현일: 2026-04-14
+작성일: 2026-04-13 · 구현일: 2026-04-14 · **상태: ✅ 구현 완료**
+
+> 본 문서는 VLibras 공식 위젯 통합의 사전 plan + 사후 구현 결과를 담는다. 기능은 production에 반영됨(Tier 1 `window.plugin.translate` 경로). **현재 작업 상태**는 [`project-status.md`](project-status.md), 위젯과 메인 캔버스의 손잡이 차이 분석은 [`avatar-handedness-analysis.md`](avatar-handedness-analysis.md) 참조.
+
 대상 파일: `public/players/sentence/index.html`
-관련 디렉토리: `vlibras-portal/` (공식 VLibras 포털 참조 클론, `.gitignore` 대상)
-상태: ✅ 구현 완료 — Tier 1 (`window.plugin.translate`) 경로로 동기화 동작 확인. Tier 2/3/4 폴백은 불필요해 생략.
 
 ## 구현 결과 요약 (2026-04-14)
 

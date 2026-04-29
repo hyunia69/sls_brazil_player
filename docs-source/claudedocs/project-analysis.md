@@ -1,20 +1,14 @@
-# Brazil Sign Language Player - Project Analysis
+# Brazil Sign Language Player — 초기 프로젝트 분석 (Historical)
 
-**Date**: 2026-03-25
-**Goal**: Three.js 기반 SLMB Player 구현을 위한 사전 분석
+**원본 작성**: 2026-03-25 · **상태 갱신**: 2026-04-29
+
+> 본 문서는 **Three.js SLMB Player를 처음 설계하던 시점의 사전 분석**이다. 현재 디렉토리 구조와 구현 상태는 [`CLAUDE.md`](../../CLAUDE.md)와 [`project-status.md`](project-status.md)가 최신이다. 본 문서의 ABNT 스펙 표(§2)와 핵심 수학(§8) 부분은 여전히 유효하며 reference로 활용 가치 있음. **§3 VLibras Portal·§5 SLMB 현재 상태·§6 구현 전략은 historical**(이미 모두 구현됨).
 
 ---
 
-## 1. 프로젝트 구조 개요
+## 1. 프로젝트 구조 (당시 시점, historical)
 
-```
-player/
-├── docu/              # ABNT NBR 25606 표준 문서 + SBTVD OG-06 운영 가이드
-├── vlibras-portal/    # VLibras 공식 포털 (위젯, Unity WebGL 플레이어, 샘플)
-├── data/              # 아바타 모델(glTF) + CASA 애니메이션 번들
-├── slmb-player/       # SLMB 변환기 (Python) - Three.js 플레이어 구현 대상
-└── claudedocs/        # 분석 문서
-```
+당시는 별도 폴더(`docu/`, `vlibras-portal/`, `data/`, `slmb-player/`)로 분리되어 있었으며, 2026-04-08에 단일 `sls_brazil_player/` 구조로 통합됨. 현재 구조는 [`CLAUDE.md`](../../CLAUDE.md) 참조.
 
 ---
 
@@ -127,102 +121,19 @@ BVH/Animation → BodyMotionBlock + FaceMotionBlock → MotionBundle → LZMA/xz
 **머티리얼**: PBR (Metallic-Roughness)
 **컴포넌트**: head, hair, body, eyes, eyebrows, eyelashes, mouth, shoes, clothing
 
-### CASA 애니메이션 번들 (`data/CASA/`)
+### CASA 애니메이션 번들 (당시 위치, historical)
 
-| 파일 | 크기 | 설명 |
-|------|------|------|
-| `CASA` | 19.7KB | Unity AssetBundle (바이너리) |
-| `manifest.json` | 879B | 에셋 메타데이터 |
-| `CASA_animation.json` | 5.7KB | 키프레임 데이터 추출 |
-| `CASA_full.json` | 131.8KB | 전체 스켈레톤+애니메이션 |
-
-**애니메이션 속성**:
-- Duration: 2.47초 (74프레임 @ 30fps)
-- 102개 본 경로
-- 쿼터니언 회전 + XYZ 위치 곡선
-- 84개 스케일 커브 + 22개 플로트 커브 (블렌드셰이프)
+당시는 `data/CASA/` 안에 Unity AssetBundle과 raw dump JSON이 있었음. 현재는 `public/animations/vlibras/`로 통합됨. 데이터 변환 파이프라인 5단계는 [`data-pipeline-and-handedness.md`](data-pipeline-and-handedness.md) §1 참조.
 
 ---
 
-## 5. SLMB Player 현재 상태 (slmb-player/)
+## 5. SLMB Player 구현 상태 (현재)
 
-### 기존 Python 패키지
+§1·§5·§6의 historical 내용 대신 현재 구현 상태는 다음을 참조:
 
-| 패키지 | 버전 | 기능 |
-|--------|------|------|
-| `slmb_converter` | 1.0.0 | BVH ↔ SLMB ↔ glTF 변환 |
-| `vlibras2slmb` | 0.1.0 | VLibras AssetBundle → SLMB 변환 |
-
-### 주요 모듈
-
-```
-slmb_converter/           vlibras2slmb/
-├── bvh_parser.py         ├── parsing/animation_clip.py
-├── slmb_encoder.py       ├── retarget/body_retarget.py
-├── slmb_decoder.py       ├── retarget/face_retarget.py
-├── gltf_writer.py        ├── encoding/body_encoder.py
-├── math_utils.py         ├── encoding/face_encoder.py
-└── constants.py          └── encoding/gltf_writer.py
-```
-
-### Three.js 플레이어 구현 필요 사항
-
-**있는 것**:
-- SLMB 바이너리 포맷 파서/인코더 (Python)
-- glTF 내보내기 파이프라인
-- 조인트/블렌드셰이프 스펙 (ABNT 표준)
-- 샘플 아바타 모델 (glTF + 텍스처)
-- 샘플 애니메이션 (CASA)
-
-**없는 것 (구현 대상)**:
-- JavaScript/TypeScript SLMB 디코더
-- Three.js 씬 세팅 (SkinnedMesh, AnimationMixer)
-- 스켈레톤 리깅 (46 조인트 매핑)
-- 블렌드셰이프 적용 (morphTargets)
-- 실시간 렌더링 + UI 컨트롤
-
----
-
-## 6. Three.js Player 구현 전략
-
-### 접근 방식 A: glTF 경유 (권장)
-
-```
-.slmb.xz → Python 디코더 → .gltf/.glb → Three.js GLTFLoader → 재생
-```
-
-- 장점: Three.js의 기존 glTF 지원 활용, 빠른 프로토타이핑
-- 단점: 오프라인 변환 필요, 실시간 스트리밍 불가
-
-### 접근 방식 B: 네이티브 SLMB 디코더
-
-```
-.slmb.xz → JS SLMB Decoder → Three.js SkinnedMesh + AnimationClip → 재생
-```
-
-- 장점: 실시간 스트리밍 가능, 완전한 제어
-- 단점: SLMB 바이너리 파서를 JS로 재구현 필요
-
-### 접근 방식 C: 하이브리드
-
-```
-Phase 1: glTF 경유로 프로토타입 구현
-Phase 2: JS SLMB 디코더로 전환
-```
-
-### 핵심 Three.js 컴포넌트
-
-```
-Three.js Player
-├── Scene Setup (WebGLRenderer, Camera, Lights)
-├── Avatar Loader (GLTFLoader → SkinnedMesh)
-├── Animation System
-│   ├── AnimationMixer (재생 제어)
-│   ├── AnimationClip (키프레임 데이터)
-│   └── MorphTarget (페이셜 블렌드셰이프)
-├── SLMB Decoder (바이너리 → 애니메이션 데이터)
-└── UI Controls (재생/정지/속도/아바타 선택)
-```
+- **Python 패키지**: `tools/slmb_converter/`, `tools/vlibras2slmb/` (구조는 [`CLAUDE.md`](../../CLAUDE.md) 디렉토리 도식 참조)
+- **Three.js 플레이어들**: `public/players/{bvh,slmb,vlibras,vlibras-v3,sentence,sentence-stroke-test,viewer}/`
+- **SLMB Pipeline Player 구현 상세**: [`implement-player-bvh-slmb.md`](implement-player-bvh-slmb.md)
 
 ---
 
@@ -271,17 +182,6 @@ Euler 12bit: val/4095*360 - 180 (degrees)
 
 ---
 
-## 9. 요약 및 다음 단계
+## 9. 후속 진행 (당시 시점 기록)
 
-### 현재 보유 자산
-1. **표준 문서**: ABNT NBR 25606 완전 분석 (SLMB 바이너리 스펙)
-2. **참조 구현**: VLibras Unity WebGL 플레이어 (아키텍처 참조)
-3. **데이터**: glTF 아바타 모델 + CASA 애니메이션 샘플
-4. **변환기**: Python SLMB encoder/decoder + glTF writer
-
-### Three.js 플레이어 구현 우선순위
-1. **glTF 모델 로딩**: data/avatarModel/ 의 모델을 Three.js로 로드
-2. **애니메이션 재생**: CASA 샘플을 glTF로 변환 후 재생 테스트
-3. **SLMB JS 디코더**: Python 구현을 JavaScript로 포팅
-4. **블렌드셰이프**: 페이셜 애니메이션 적용
-5. **UI**: 재생 컨트롤, 아바타 커스터마이징
+§9의 "Three.js 플레이어 구현 우선순위" 5단계는 모두 구현 완료. 현재 진행 중인 작업과 다음 단계는 [`project-status.md`](project-status.md)를 참조.

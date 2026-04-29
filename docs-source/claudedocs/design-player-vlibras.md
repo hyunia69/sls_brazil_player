@@ -1,6 +1,12 @@
-# player_vlibras 설계 문서 v2
+# player_vlibras 설계 문서 v2 (Historical, Pre-Implementation)
 
-## 1. 개요
+> **상태**: 본 문서는 vlibras 플레이어를 처음 설계하던 시점의 탐색 문서다. 4가지 quaternion 변환 후보 비교, JavaScript 직접 파싱 전략, 좌표 변환 검증 절차를 담고 있다. 현재 plyer는 모두 구현 완료되었고, **데이터 변환 파이프라인 단일 진실 출처**는 [`data-pipeline-and-handedness.md`](data-pipeline-and-handedness.md)이다.
+>
+> 본 문서는 "왜 그 결정을 내렸는가" 참고용으로 보존한다.
+
+---
+
+## 1. 개요 (당시 목표)
 
 VLibras CASA 수어 애니메이션을 Icaro 3D 아바타에서 재생하는 Three.js 웹 플레이어.
 **단계적 접근**: 먼저 화면에 재생하는 것을 최우선으로, 이후 변환 파이프라인 정리.

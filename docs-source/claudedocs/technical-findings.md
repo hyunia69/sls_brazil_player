@@ -1,21 +1,25 @@
-# Technical Findings - 대화 중 발견사항
+# Technical Findings — 초기 기술 검증 결과
 
-**Date**: 2026-03-26
+**원본 작성**: 2026-03-26 · **경로 갱신**: 2026-04-29
+
+> 본 문서는 ABNT BVH/glTF 호환성 검증과 SLMB 디코더 버그 수정 과정의 historical 기록이다. **현재 활성 작업 상태**는 [`project-status.md`](project-status.md), **VLibras 데이터 파이프라인 단일 진실 출처**는 [`data-pipeline-and-handedness.md`](data-pipeline-and-handedness.md)를 참조하라.
 
 ---
 
-## 1. data/avatarModel.bvh 정체
+## 1. avatarModel.bvh 정체
 
 OG-06 문서(SBTVD_OG06_analysis.md:695)에서 공식 제공하는 **SLMB 표준 레퍼런스 파일**.
 
+- 위치 (현재): `public/animations/abnt/`
 - SLMB→BVH 디코딩 시 HIERARCHY 섹션(스켈레톤 구조) 참조용
 - BVH→SLMB 인코딩의 입력 포맷 예시
 - 46 조인트, 142프레임 @ 30fps, cm 단위
 
-## 2. data/avatarModel/ (model_external.gltf) 정체
+## 2. model_external.gltf (ABNT 아바타) 정체
 
 OG-06 문서(SBTVD_OG06_analysis.md:960)에서 `avatarModel.zip`으로 제공하는 **공식 렌더링 타겟 아바타**.
 
+- 위치 (현재): `public/avatars/abnt/avatarModel/model_external.gltf`
 - Samsung MyEmoji v3.1 기반
 - SLMB 디코딩 결과를 시각적으로 렌더링하기 위한 3D 모델
 - **RootNode에 scale=[100,100,100] 내장** (중요!)
@@ -66,9 +70,9 @@ model → RootNode(scale: [100,100,100]) → rig_GRP → hips_JNT → ...
 - Three.js bbox: Y: -1.3 ~ 163.5 (cm)
 - **해결**: `avatarModel.scale.set(0.01, 0.01, 0.01)` 적용
 
-## 6. player_bvh 구현 상태
+## 6. BVH Player 구현 상태
 
-위치: `slmb-player/player_bvh/index.html`
+위치 (현재): `public/players/bvh/index.html`
 
 구현 완료:
 - BVH 드래그&드롭 로드 + Three.js 스켈레톤 시각화
@@ -76,7 +80,7 @@ model → RootNode(scale: [100,100,100]) → rig_GRP → hips_JNT → ...
 - glTF 아바타 자동 로드 + BVH 모션 리타겟팅
 - Avatar/Bones 모드 토글
 
-실행: 프로젝트 루트에서 `python -m http.server 8080` → `http://localhost:8080/slmb-player/player_bvh/`
+실행: `cd public && python -m http.server 8080` → `http://localhost:8080/players/bvh/`
 
 ## 7. slmb_converter 버그 수정 (2026-03-26)
 
@@ -90,9 +94,9 @@ model → RootNode(scale: [100,100,100]) → rig_GRP → hips_JNT → ...
 - SLMBData를 웹 플레이어용 JSON으로 출력
 - Type별 Qr 처리: `_get_bvh_quaternion()` 함수
 
-## 8. player_bvh_slmb 구현 (2026-03-26)
+## 8. SLMB Pipeline Player 구현 (2026-03-26)
 
-위치: `slmb-player/player_bvh_slmb/index.html`
+위치 (현재): `public/players/slmb/index.html`
 
 3가지 SLMB 디코딩 출력 모두 재생 가능:
 - SLMB JSON: JSON → AnimationClip 빌드 → AnimationMixer
@@ -101,7 +105,11 @@ model → RootNode(scale: [100,100,100]) → rig_GRP → hips_JNT → ...
 
 플레이어 BVH 모드에서 position 트랙을 hips만 남기는 것이 중요 (전체 적용 시 아바타 늘어남).
 
-## 9. 다음 단계 - VLibras CASA 번들 재생
+## 9. 후속 진행 (historical 시점 기록)
 
-파이프라인: CASA(Unity AssetBundle) → vlibras2slmb → .slmb.xz → decode-json → player
-핵심: VLibras 84본 → SLMB 46조인트 리타겟팅 + 좌표계 변환
+본 문서 작성 시점(2026-03-26)에 다음 단계로 잡혔던 "VLibras CASA 번들 재생"은 이후 다음 두 경로로 분화되어 모두 구현 완료:
+
+1. **SLMB 경로** (84본 → 46조인트 retargeting + LH→RH): `tools/vlibras2slmb/` 패키지 (CASA 단일 검증)
+2. **Three.js 직접 재생 경로** (Three.js JSON 직접 변환): `tools/vlibras2slmb/batch/precompute_threejs.py` → `public/animations/vlibras/bundles/` → Sentence Player
+
+상세는 [`data-pipeline-and-handedness.md`](data-pipeline-and-handedness.md) §1.

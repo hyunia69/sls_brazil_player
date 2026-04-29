@@ -1,20 +1,20 @@
-# player_bvh_slmb 구현 문서
+# SLMB Pipeline Player 구현 문서
 
 ## 개요
 
 SLMB 파이프라인 전체 검증용 Three.js 플레이어. BVH 원본에서 SLMB 인코딩/디코딩을 거친 3가지 출력 포맷(JSON, BVH, glTF)을 모두 재생하여 파이프라인 정합성을 검증한다.
 
-- **위치**: `slmb-player/player_bvh_slmb/index.html`
+- **위치**: `public/players/slmb/index.html`
 - **단일 파일**: HTML + CSS + JS (ES Module) 올인원, 외부 의존성은 CDN Three.js만
 - **Three.js**: v0.170.0 (importmap CDN)
-- **아바타**: `data/avatarModel/model_external.gltf` (Samsung MyEmoji v3.1, SLMB 표준 호환)
+- **아바타**: `public/avatars/abnt/avatarModel/model_external.gltf` (Samsung MyEmoji v3.1, SLMB 표준 호환)
 
 ## 실행 방법
 
 ```bash
-cd D:/lg/work/SLS/brazil/code/player
+cd public
 python -m http.server 8080
-# 브라우저: http://localhost:8080/slmb-player/player_bvh_slmb/
+# 브라우저: http://localhost:8080/players/slmb/
 ```
 
 ## 아키텍처
@@ -22,7 +22,7 @@ python -m http.server 8080
 ### 파이프라인 위치
 
 ```
-avatarModel.bvh (원본)
+avatarModel.bvh (원본, public/animations/abnt/)
     ↓ slmb_converter encode
     .slmb.xz (압축 바이너리)
     ↓ slmb_converter decode
@@ -30,9 +30,9 @@ avatarModel.bvh (원본)
     ├── avatarModel_roundtrip.bvh        ← SOURCE 2: Roundtrip BVH
     └── avatarModel_roundtrip.gltf/.bin  ← SOURCE 3: Roundtrip glTF
     ↓
-    player_bvh_slmb (이 플레이어)
+    public/players/slmb/index.html (이 플레이어)
     ↓
-    model_external.gltf 아바타에 애니메이션 적용 → 3D 렌더링
+    public/avatars/abnt/avatarModel/model_external.gltf 아바타 → 3D 렌더링
 ```
 
 ### 씬 구성
@@ -194,11 +194,11 @@ avatarModel.scale.set(0.01, 0.01, 0.01);  // RootNode scale=100 상쇄
 - **Face Blendshape 재생**: SLMB JSON의 face.blendshapes 데이터를 아바타 morphTarget에 매핑하는 로직 (TODO 상태)
 - **파일 선택기 glTF + .bin**: 외부 .bin 참조가 있는 glTF는 파일 선택기로 로드 불가 (프리셋 버튼 사용 필요)
 
-## 의존 파일
+## 의존 파일 (현재 경로)
 
 | 파일 | 역할 |
 |------|------|
-| `data/avatarModel/model_external.gltf` + `model.bin` + PNG 텍스처 | 렌더링 아바타 |
-| `data/avatarModel_roundtrip_slmb.json` | SLMB JSON 프리셋 (slmb_converter 출력) |
-| `data/avatarModel_roundtrip.bvh` | Roundtrip BVH 프리셋 (slmb_converter 출력) |
-| `data/avatarModel_roundtrip.gltf` + `.bin` | Roundtrip glTF 프리셋 (slmb_converter 출력) |
+| `public/avatars/abnt/avatarModel/model_external.gltf` + `model.bin` + PNG 텍스처 | 렌더링 아바타 |
+| `public/animations/abnt/avatarModel_roundtrip_slmb.json` | SLMB JSON 프리셋 (slmb_converter 출력) |
+| `public/animations/abnt/avatarModel_roundtrip.bvh` | Roundtrip BVH 프리셋 (slmb_converter 출력) |
+| `public/animations/abnt/avatarModel_roundtrip.gltf` + `.bin` | Roundtrip glTF 프리셋 (slmb_converter 출력) |
